@@ -1,27 +1,28 @@
 import random
-
+import math
 
 def calc_dmg(bat1, bat2):
-    dmg = (
-        sum(random.randint(1, bat1.attack) for _ in xrange(bat1.n_units))
-        - (bat2.armor * bat2.n_units)
-    )
-    unit_loss = int(dmg / float(
-        bat2.health
-        + random.randint(1, 2)
-    ))
+    success_att = sum(1 if x < (bat1.att_prof+50-bat2.def_prof) else 0 for x in (random.randint(0, 100) for _ in xrange(bat1.n_units)))
+    dmg = ((
+        sum(random.randint(1, bat1.attack) for _ in xrange(success_att))
+        - (bat2.armor * success_att)
+    )/(0.4*bat1.n_units ** 0.5))*random.randint(1, 4)
+
+    unit_loss = min(max(int(dmg / float(bat2.health + random.randint(1, 2))), 0),bat2.n_units)
 
     return dmg, unit_loss
 
 
 class Battalion(object):
 
-    def __init__(self, tag, n_units, attack, armor, health):
+    def __init__(self, tag, n_units, attack, armor, health, att_prof, def_prof):
         self.tag = tag
         self.n_units = n_units
         self.attack = attack
         self.armor = armor
         self.health = health
+        self.att_prof = att_prof
+        self.def_prof = def_prof
 
     def fight(self, other):
         self_dmg, other_unit_loss = calc_dmg(self, other)
@@ -41,18 +42,22 @@ class Battalion(object):
 
 a = Battalion(
     tag='A',
-    n_units=10,
+    n_units=100,
     attack=20,
     armor=2,
-    health=20
+    health=10,
+    att_prof=50,
+    def_prof=50
 )
 
 b = Battalion(
     tag='B',
-    n_units=20,
-    attack=10,
+    n_units=70,
+    attack=20,
     armor=2,
-    health=20
+    health=10,
+    att_prof=50,
+    def_prof=50
 )
 
 a.fight(b)
