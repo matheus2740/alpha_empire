@@ -26,7 +26,7 @@ def retry_on_refuse(f, *args, **kwargs):
             f(*args, **kwargs)
             break
         except (OSError, socket.error) as e:
-            if e.args[0] != socket.errno.ECONNREFUSED or i > 10000:
+            if e.args[0] != socket.errno.ECONNREFUSED or i > 3:
                 raise
             else:
                 time.sleep(0.001)

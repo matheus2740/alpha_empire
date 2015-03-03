@@ -17,7 +17,7 @@ class ModelViewer(ShowBase):
         ShowBase.__init__(self)
 
         # Load the environment model.
-        self.environ = self.loader.loadModel(sys.argv[1])
+        self.environ = self.loader.loadModel("/model ttf/para.egg")
         # Reparent the model to render.
         self.environ.reparentTo(self.render)
         # Apply scale and position transforms on the model.

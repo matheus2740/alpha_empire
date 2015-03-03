@@ -2,11 +2,12 @@ from collections import deque
 import os
 import hashlib
 from src.dgvm.datamodel_meta import DatamodelMeta
-from src.dgvm.instruction import Instruction, InvalidInstruction
+from src.dgvm.instruction import Instruction, InvalidInstruction, MemberInstructionWrapper
 from src.dgvm.ipc.server import BaseIPCServer
-from src.dgvm.transaction import EndTransaction, BeginTransaction
+from src.dgvm.builtin_instructions import *
 from datamodel import InvalidModel, Datamodel
 import datamodel
+import importlib
 
 __author__ = 'salvia'
 
@@ -43,6 +44,15 @@ class Commit(object):
         pre_str = '\n'.join(pre_str)
         self.hash = hashlib.sha256(pre_str).hexdigest()
 
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        s = []
+        for i in xrange(min(len(self.diff), 10)):
+            s += [str(self.diff[i])]
+        return '<Commit object at %s with instructions: [%s]>' % (id(self), ', '.join(s))
+
 
 # BaseIPCServer is old-styled (Python ServerSocker is old-style, sadly),
 # so we need to inherit from object also, if we want metaclasses to work.
@@ -56,7 +66,7 @@ class VM(BaseIPCServer, object):
         self.datamodels_pack = __import__(definitions_package + '.datamodels')
 
         self.datamodels = {}
-        self.instructions = []
+        self.instructions = {'opcodes': {}, 'mnemonics': {}}
 
         self.load_datamodels()
         self.load_instructions()
@@ -80,6 +90,8 @@ class VM(BaseIPCServer, object):
             if isinstance(v, DatamodelMeta):
                 self.validate_model(v)
                 models.append(v)
+                for member_instruction in [inst for (name, inst) in v.__dict__.iteritems() if isinstance(inst, MemberInstructionWrapper)]:
+                    member_instruction.register(self, v)
 
         self.datamodels = list(models)
 
@@ -92,11 +104,15 @@ class VM(BaseIPCServer, object):
         self.instructions = {
             'opcodes': {
                 BeginTransaction.opcode: BeginTransaction,
-                EndTransaction.opcode: EndTransaction
+                EndTransaction.opcode: EndTransaction,
+                InstantiateModel.opcode: InstantiateModel,
+                DestroyInstance.opcode: DestroyInstance
             },
             'mnemonics': {
                 BeginTransaction.mnemonic: BeginTransaction,
-                EndTransaction.mnemonic: EndTransaction
+                EndTransaction.mnemonic: EndTransaction,
+                InstantiateModel.mnemonic: InstantiateModel,
+                DestroyInstance.mnemonic: DestroyInstance
             }
         }
         for k, v in self.instructions_pack.instructions.__dict__.iteritems():
@@ -114,30 +130,36 @@ class VM(BaseIPCServer, object):
 
     def validate_instruction(self, instruction):
 
-        def invalid(desc):
+        def fmt(desc):
             return False, '%s: %s' % (desc, str(instruction))
 
         if instruction.opcode <= 100:
-            return invalid('Invalid opcode')
+            return fmt('Invalid opcode')
         if not instruction.mnemonic:
-            return invalid('Invalid mnemonic')
+            return fmt('Invalid mnemonic')
         if instruction.opcode in self.instructions['opcodes']:
-            return invalid('Duplicate opcode')
+            return fmt('Duplicate opcode')
         if instruction.mnemonic in self.instructions['mnemonics']:
-            return invalid('Duplicate mnemonic')
+            return fmt('Duplicate mnemonic')
 
         return True, 'OK'
 
-    def startup(self):
-        BaseIPCServer.startup(self)
+    def startup(self, *args, **kwargs):
+        BaseIPCServer.startup(self, *args, **kwargs)
 
     # -----
 
     def begin_transaction(self):
+        """
+            Start a new commit and adds BEGINTRANS to it (every commit start with an BEGINTRANS instruction)
+        """
         self.workspace = Commit()
         self.workspace.diff.append(BeginTransaction())
 
     def end_transaction(self):
+        """
+            Ends the current commit and adds ENDTRANS to it (every commit ends with a ENDTRANS instruction)
+        """
         self.workspace.diff.append(EndTransaction())
         self.workspace = None
 
@@ -147,14 +169,15 @@ class VM(BaseIPCServer, object):
         self.raw_emit(log)
 
     def raw_emit(self, log):
-        self.workspace.diff.extend(log)
         for instruction in log:
             instruction(self)
+        self.workspace.diff.extend(log)
 
     def commit(self):
-        self.workspace.calc_hash()
-        self.commits.append(self.workspace)
-        self.end_transaction()
+        if self.workspace:
+            self.workspace.calc_hash()
+            self.commits.append(self.workspace)
+            self.end_transaction()
 
     def get_last_commit(self):
         return self.commits[-1]

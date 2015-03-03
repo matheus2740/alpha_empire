@@ -16,7 +16,7 @@ def cmd_goodbye(server, info):
 
 
 def cmd_shutdown(server, info):
-    server.server.harakiri()
+    server.shutdown()
     raise Goodbye
 
 
@@ -29,6 +29,10 @@ def cmd_raise(client, info):
     raise IPCServerException('IPC Server returned an exception: ' + info['exc'])
 
 
+def do_nothing():
+    pass
+
+
 class Commands(object):
     """
         command = (id, client execution, server execution, execute function)
@@ -37,6 +41,7 @@ class Commands(object):
     SHUTDOWN     = (2, False, True, cmd_shutdown)
     TRACEBACK    = (3, True, False, cmd_traceback)
     RAISE        = (4, True, False, cmd_raise)
+    ACK          = (5, True, True, do_nothing)
 
 
 class Command(object):
@@ -73,3 +78,7 @@ class Command(object):
             'exc': exc,
             'data': data
         })
+
+    @staticmethod
+    def Ack():
+        return Command(Commands.ACK, {})
