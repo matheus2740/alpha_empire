@@ -5,6 +5,7 @@ from src.dgvm.ipc.client import BaseIPCClient
 from src.dgvm.builtin_instructions import BeginTransaction, EndTransaction, InstantiateModel
 from src.dgvm.vm import VM
 from alpha_empire_test.datamodels import Infantry, Board
+import time
 __author__ = 'salvia'
 
 
@@ -21,7 +22,6 @@ class VMTests(unittest.TestCase):
 
         with VM('alpha_empire_test') as vm:
             client = BaseIPCClient()
-
             assert client.square(2) == 4
             assert client.square(3) == 9
             assert client.square(4) == 16

@@ -7,12 +7,16 @@ import sys
 import select
 import errno
 from threading import Thread
+import threading
 import traceback
+import os
 from protocol import BaseIPCProtocol
 from command import Command, Goodbye
+import time
 
 __author__ = 'salvia'
 
+platform = sys.platform
 
 class IPCAvailable(object):
     def __init__(self, ipc_server):
@@ -41,12 +45,24 @@ class TCPIPCServer(object):
     def __init__(self, ipc_server):
         self.shuttingdown = Value('i', 0)
         self.ipc_server = ipc_server
-        self.timeout = 100
+        self.timeout = 1
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind(ipc_server.address)
         self.server_address = self.socket.getsockname()
         self.socket.listen(self.request_queue_size)
+        self.handler_sockets = {}
+        if platform == 'win32':
+            self.pid = threading.current_thread().ident
+        else:
+            self.pid = os.getpid()
+
+    def harakiri(self):
+        """
+        Shuts down the server from the server process itself.
+        """
+        with self.shuttingdown.get_lock():
+            self.shuttingdown.value = 1
 
     def shutdown(self):
         """
@@ -59,7 +75,11 @@ class TCPIPCServer(object):
             self.socket.shutdown(SHUT_RDWR)
         except error:
             pass
-        self.socket.close()
+
+        try:
+            self.socket.close()
+        except error:
+            pass
 
     def serve_forever_(self):
         while self.shuttingdown.value == 0:
@@ -69,11 +89,20 @@ class TCPIPCServer(object):
             try:
                 request_socket, client_address = self.socket.accept()
             except socket.error:
-                return
+                break
+
+            self.handler_sockets[id(request_socket)] = request_socket
 
             t = Thread(target=self.handle, args=(request_socket,))
             t.daemon = True
             t.start()
+
+        for _, sock in self.handler_sockets.iteritems():
+            sock.close()
+
+        self.socket.close()
+        if platform != 'win32':
+            os._exit(0)
 
     def handle(self, request_socket):
         sv = self.ipc_server
@@ -81,14 +110,14 @@ class TCPIPCServer(object):
             data = sv.protocol.recover_message(request_socket)
 
             if data is None:
-                return
+                break
 
             if isinstance(data, Command):
                 try:
                     data.execute_as_server(self)
                 except Goodbye:
-                    sv.protocol.send_message(request_socket, Command.Ack())
-                    return
+                    sv.protocol.send_message(request_socket, Command.Ack(self.pid))
+                    break
             else:
 
                 fname = data['f']
@@ -107,6 +136,9 @@ class TCPIPCServer(object):
                     result = Command.Raise('no_such_function', data)
 
                 sv.protocol.send_message(request_socket, result)
+        # close connection and remove socket from handlers
+        request_socket.close()
+        self.handler_sockets[id(request_socket)] = request_socket
 
 
 class BaseIPCServer(object):
@@ -126,6 +158,7 @@ class BaseIPCServer(object):
 
     protocol = BaseIPCProtocol
     _quiver = {}
+    _processes = {}
 
     def __init__(self, address=('127.0.0.1', 8998), start=True):
         """
@@ -137,6 +170,7 @@ class BaseIPCServer(object):
         self.process = None
         self._started = False
         self.tcp_server = None
+        self.ignited = Value('i', 0)
         if start:
             self.startup()
 
@@ -152,21 +186,40 @@ class BaseIPCServer(object):
         """
         cls._quiver[functor.__name__ if not name else name] = functor
 
+    def wait_for_startup(self):
+        a = time.time()
+        while True:
+            if time.time() - a > 2:
+                raise IOError('IPC server failed to launch')
+            with self.ignited.get_lock():
+                if self.ignited.value == 1:
+                    return
+            time.sleep(0.001)
+
     def startup(self, should_fork=True):
 
         if should_fork:
-            if sys.platform == 'win32':
+            # win32 does not fork so memory is not copied. This is not an ideal solution but works for an MVP.
+            if platform == 'win32':
                 self.process = Thread(target=f_startup, args=(self,))
             else:
                 self.process = Process(target=f_startup, args=(self,))
+
             self.process.daemon = True
             self.process.start()
+            self.wait_for_startup()
+            if platform == 'win32':
+                BaseIPCServer._processes[self.process.ident] = self.process
+            else:
+                BaseIPCServer._processes[self.process.pid] = self.process
         else:
             if self._started:
                 return
             self.tcp_server = TCPIPCServer(self)
-            self.tcp_server.serve_forever_()
+            with self.ignited.get_lock():
+                self.ignited.value = 1
             self._started = True
+            self.tcp_server.serve_forever_()
 
     def shutdown(self):
         from client import BaseIPCClient

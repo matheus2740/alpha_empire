@@ -1,17 +1,26 @@
 import socket
 import time
-import os.path
+import sys
+import os
 from src.dgvm.ipc.command import Command
 from src.dgvm.ipc.protocol import BaseIPCProtocol
 
 __author__ = 'salvia'
 
+def check_pid(pid):
+    """ Check For the existence of a unix pid. """
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    else:
+        return True
 
 class IPCCLientException(Exception):
     pass
 
 
-def retry_on_refuse(f, *args, **kwargs):
+def retry_on_refuse(f, retries, *args, **kwargs):
     """
     Wrapper function which retries a connection in case of ECONNREFUSED.
     :param f: wrapped function
@@ -26,7 +35,7 @@ def retry_on_refuse(f, *args, **kwargs):
             f(*args, **kwargs)
             break
         except (OSError, socket.error) as e:
-            if e.args[0] != socket.errno.ECONNREFUSED or i > 3:
+            if (e.args[0] != socket.errno.ECONNREFUSED and e.args[0] != socket.errno.EINVAL) or i > retries:
                 raise
             else:
                 time.sleep(0.001)
@@ -77,14 +86,15 @@ class BaseIPCClient(object):
 
     protocol = BaseIPCProtocol
 
-    def __init__(self, address=('127.0.0.1', 8998)):
+    def __init__(self, address=('127.0.0.1', 8998), retries=10):
         """
         Initializes a client and connect to the server, throught the given address.
         :param address: The UNIX socket path
         :return:
         """
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        retry_on_refuse(self.sock.connect, address)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        retry_on_refuse(self.sock.connect, retries, address)
         self._address = address
         self.connected = True
 
@@ -113,6 +123,10 @@ class BaseIPCClient(object):
         data = self.protocol.recover_message(self.sock)
         self.sock.close()
         self.sock = None
+        from server import BaseIPCServer
+        pid = data.info['message']
+        BaseIPCServer._processes[pid].join()
+        pass
 
     def __getattr__(self, item):
         """
