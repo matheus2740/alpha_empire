@@ -26,12 +26,24 @@ class Datamodel(object):
         self.vm = vm
 
         self._state = DatamodelStates.ENGINE_CHANGING
-        # TODO: correctly validate default and null
         for k, v in self._vmattrs.iteritems():
-            if k in kwargs:
+            # value is passed in ctor, just go ahead
+            if k in kwargs and kwargs[k] is not None:
                 setattr(self, k, kwargs[k])
+            # no value provided in ctor, do we require it?
             else:
-                setattr(self, k, v.val_init())
+                # nope, we don't require it, just leave it as None
+                if v.null:
+                    setattr(self, k, None)
+                # yes we require it, do we have a default value?
+                else:
+                    # yes we have a default value, use it
+                    if v.default:
+                        setattr(self, k, v.default)
+                    # no we don't have a default value and something is required, so raise and let user fix it.
+                    else:
+                        self._state = DatamodelStates.NORMAL
+                        raise ValueError('Cannot instantiate %s: value for %s is required.' % (type(self).__name__, k,))
 
         self._state = DatamodelStates.NORMAL
 

@@ -1,7 +1,7 @@
 __author__ = 'salvia'
 
 from src.dgvm.datamodel import Datamodel
-from src.dgvm.datamodel_meta import constraint, IntegerVMAttribute, PairVMAttribute, ForeignModelVMAttribute
+from src.dgvm.datamodel_meta import constraint, IntegerVMAttribute, PairVMAttribute, ForeignModelVMAttribute, StringVMAttribute
 from board import Board
 from src.dgvm.instruction import instruction
 import math
@@ -12,13 +12,14 @@ class Infantry(Datamodel):
     Preliminary infantry datamodel,
     used to test DGVM
     """
-    n_units = IntegerVMAttribute()
-    attack_dmg = IntegerVMAttribute()
-    armor = IntegerVMAttribute()
-    health = IntegerVMAttribute()
-    action = IntegerVMAttribute()
-    position = PairVMAttribute(int)
-    board = ForeignModelVMAttribute(Board)
+    n_units = IntegerVMAttribute(null=False)
+    attack_dmg = IntegerVMAttribute(null=False)
+    armor = IntegerVMAttribute(null=False)
+    health = IntegerVMAttribute(null=False)
+    action = IntegerVMAttribute(null=False)
+    tag = StringVMAttribute(null=True)
+    position = PairVMAttribute(int, null=False, default=(0, 0))
+    board = ForeignModelVMAttribute(Board, null=False)
 
     @instruction(opcode=101, mnemonic='MOVE', args=(Datamodel, int, int), onself=True)
     def move(inst, infantry, x, y):

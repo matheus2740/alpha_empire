@@ -194,8 +194,71 @@ class VMTests(unittest.TestCase):
             assert i.position == (1, 1)
             pass
 
+    def test_default_null(self):
 
-# TODO: test destroy model
+        with VM('alpha_empire_test') as vm:
+            i = Infantry(
+                vm,
+                n_units=1,
+                attack_dmg=1,
+                armor=0,
+                health=1,
+                action=10,
+                board=Board(vm, width=20, height=20)
+            )
+
+            vm.commit()
+
+            commit = vm.get_last_commit()
+
+            assert hash(commit) is not None
+            assert isinstance(commit[0], BeginTransaction)
+            assert isinstance(commit[1], InstantiateModel)
+            assert isinstance(commit[2], InstantiateModel)
+            assert isinstance(commit[3], EndTransaction)
+            assert i.position == (0, 0)
+            assert i.tag == None
+            assert vm.heap[id(i)] == i
+
+        with VM('alpha_empire_test') as vm:
+            i = Infantry(
+                vm,
+                n_units=1,
+                attack_dmg=1,
+                armor=0,
+                health=1,
+                action=10,
+                tag='Hello!',
+                board=Board(vm, width=20, height=20)
+            )
+
+            vm.commit()
+
+            commit = vm.get_last_commit()
+
+            assert hash(commit) is not None
+            assert isinstance(commit[0], BeginTransaction)
+            assert isinstance(commit[1], InstantiateModel)
+            assert isinstance(commit[2], InstantiateModel)
+            assert isinstance(commit[3], EndTransaction)
+            assert i.position == (0, 0)
+            assert i.tag == 'Hello!'
+            assert vm.heap[id(i)] == i
+
+        with VM('alpha_empire_test') as vm:
+            try:
+                i = Infantry(
+                    vm,
+                    n_units=1,
+                    attack_dmg=1,
+                    armor=0,
+                    action=10,
+                    tag='Hello!',
+                    board=Board(vm, width=20, height=20)
+                )
+                assert False
+            except ValueError as e:
+                assert e.message == 'Cannot instantiate Infantry: value for health is required.'
 
 if __name__ == '__main__':
     unittest.main()

@@ -46,19 +46,13 @@ class VMAttribute(object):
     attr_type = None
     coerce_val = False
 
-    def __init__(self, default=None, **kwargs):
+    def __init__(self, default=None, null=False, **kwargs):
         self.attr_name = ""
         self.name = ""
         self.on_change = ConstraintCollection()
         self.default = default
+        self.null = null
         self.set_name(self.__class__.__name__, id(self))
-
-    def val_init(self):
-        if self.default:
-            return self.default
-        if self.attr_type:
-            return self.attr_type()
-        return None
 
     def set_name(self, prefix, key):
         self.name = key
@@ -114,19 +108,14 @@ class VMAttribute(object):
 class TypedVMAttribute(VMAttribute):
 
     def __init__(self, subtype, default=None, **kwargs):
-        super(TypedVMAttribute, self).__init__(**kwargs)
         if not subtype:
             raise ValueError('subtype cannot be None')
+        if self.coerce_val:
+            default = self.attr_type(default)
         if default and not isinstance(default, self.attr_type):
             raise ValueError('default value must be of type %s, not %s' % (str(self.attr_type), str(type(default))))
         self.subtype = subtype
-
-    def val_init(self):
-        if self.default:
-            return self.default
-        if self.attr_type:
-            return self.attr_type(self.subtype)
-        return None
+        super(TypedVMAttribute, self).__init__(default=default, **kwargs)
 
 
 def listof(type):
@@ -268,17 +257,17 @@ class ListVMAttribute(TypedVMAttribute):
 
 
 class PairVMAttribute(TypedVMAttribute):
-    attr_type = staticmethod(tuple2)
+    attr_type = tuple2
     coerce_val = True
 
 
 class TrioVMAttribute(TypedVMAttribute):
-    attr_type = staticmethod(tuple3)
+    attr_type = tuple3
     coerce_val = True
 
 
 class QuartetVMAttribute(TypedVMAttribute):
-    attr_type = staticmethod(tuple4)
+    attr_type = tuple4
     coerce_val = True
 
 
