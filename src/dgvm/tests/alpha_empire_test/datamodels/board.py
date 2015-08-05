@@ -6,7 +6,7 @@ from src.dgvm.datamodel_meta import constraint, IntegerVMAttribute, PairVMAttrib
 
 class Board(Datamodel):
     """
-    Preliminary infantry datamodel,
+    Preliminary board datamodel,
     used to test DGVM
     """
     width = IntegerVMAttribute()

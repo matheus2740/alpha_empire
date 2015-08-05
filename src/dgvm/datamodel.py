@@ -1,6 +1,6 @@
 from datamodel_meta import DatamodelMeta, DatamodelStates
 from collections import deque
-from builtin_instructions import InstantiateModel
+from builtin_instructions import InstantiateModel, DestroyInstance
 
 __author__ = 'salvia'
 
@@ -12,17 +12,11 @@ class InvalidModel(Exception):
     pass
 
 
-class Events(object):
-    INSTANCED = 0
-
-
+# TODO: implement .objects(.all/.filter)
 class Datamodel(object):
     """
         Base class for all models.
 
-        NOTE:
-            self.log is a sequence that builds up instructions over the object lifetime, until .save is called,
-            at which point these instructions are going to be passed on the the VM.
     """
     __metaclass__ = DatamodelMeta
 
@@ -30,10 +24,9 @@ class Datamodel(object):
 
     def __init__(self, vm, **kwargs):
         self.vm = vm
-        self.log = deque()
 
         self._state = DatamodelStates.ENGINE_CHANGING
-
+        # TODO: correctly validate default and null
         for k, v in self._vmattrs.iteritems():
             if k in kwargs:
                 setattr(self, k, kwargs[k])
@@ -42,16 +35,20 @@ class Datamodel(object):
 
         self._state = DatamodelStates.NORMAL
 
-        self.vm.emit([self.instantiate()])
+        self.vm.emit([self.__instantiate_instruction()])
 
-    def __del__(self):
-        pass
+    def is_destroyed(self):
+        return self._state == DatamodelStates.DESTROYED
 
-    def instantiate(self):
+    def destroy(self):
+        self.vm.emit([self.__destroy_instruction()])
+        self._state = DatamodelStates.DESTROYED
+
+    def __destroy_instruction(self):
+        return DestroyInstance(self)
+
+    def __instantiate_instruction(self):
         return InstantiateModel(self, self._vmattrs)
-
-    def clear_log(self):
-        self.log = deque()
 
     def _to_user_changing_state(self):
         self._state = DatamodelStates.USER_CHANGING

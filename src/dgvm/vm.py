@@ -6,8 +6,8 @@ from src.dgvm.instruction import Instruction, InvalidInstruction, MemberInstruct
 from src.dgvm.ipc.server import BaseIPCServer
 from src.dgvm.builtin_instructions import *
 from datamodel import InvalidModel, Datamodel
+from utils import iterable
 import datamodel
-import importlib
 
 __author__ = 'salvia'
 
@@ -21,7 +21,36 @@ class Heap(object):
     def __init__(self, size):
         super(Heap, self).__init__()
         self.size = size
-        self.data = {}
+        self.__data = {}
+
+    def set(self, address, object):
+        if not isinstance(address, int):
+            raise ValueError('Heap address must be of type int, not ' + type(address).__name__)
+        self.__data[address] = object
+
+    def get(self, item):
+        return self.__data.get(item)
+
+    def percent_used(self):
+        return float(len(self.__data)) / float(self.size) * 100
+
+    def __len__(self):
+        return len(self.__data)
+
+    def __getitem__(self, item):
+        return self.__data[item]
+
+    def __setitem__(self, key, value):
+        self.__data[key] = value
+        
+    def __delitem__(self, key):
+        del self.__data[key]
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return '<Heap object at %s, %s%% used, with size=%s>' % (id(self), self.percent_used(), self.size)
 
 
 class VMMeta(type):
@@ -32,25 +61,62 @@ class VMMeta(type):
 
 class Commit(object):
 
-    def __init__(self,):
-        self.hash = None
-        self.diff = deque()
+    def __init__(self):
+        self.__has_valid_hash = False
+        self.__hash = None
+        self.__diff = deque()
 
     def calc_hash(self):
-        pre_str = deque()
-        for instruction in self.diff:
-            pre_str.append(instruction.mnemonize())
+        if not self.__has_valid_hash:
+            pre_str = deque()
+            for instruction in self.__diff:
+                pre_str.append(instruction.mnemonize())
 
-        pre_str = '\n'.join(pre_str)
-        self.hash = hashlib.sha256(pre_str).hexdigest()
+            pre_str = '\n'.join(pre_str)
+            self.__hash = int(hashlib.sha256(pre_str).hexdigest(), 16)
+            self.__has_valid_hash = True
+        return self.__hash
+
+    def append(self, item):
+        if not isinstance(item, Instruction):
+            raise ValueError('Commit item must be of type Instruction, not ' + type(item).__name__)
+        self.__has_valid_hash = False
+        self.__hash = None
+        self.__diff.append(item)
+
+    def extend(self, items):
+        if not iterable(items):
+            raise ValueError('items must be iterable')
+
+        for item in items:
+            self.append(item)
+
+    def dumps(self):
+        raise NotImplementedError()
+
+    @classmethod
+    def loads(cls):
+        raise NotImplementedError()
+
+    def __len__(self):
+        return len(self.__diff)
+
+    def __getitem__(self, item):
+        return self.__diff[item]
+
+    def __setitem__(self, key, value):
+        raise ValueError('Cannot set a commit item.')
 
     def __repr__(self):
         return str(self)
 
+    def __hash__(self):
+        return self.calc_hash()
+
     def __str__(self):
         s = []
-        for i in xrange(min(len(self.diff), 10)):
-            s += [str(self.diff[i])]
+        for i in xrange(min(len(self.__diff), 10)):
+            s += [str(self.__diff[i])]
         return '<Commit object at %s with instructions: [%s]>' % (id(self), ', '.join(s))
 
 
@@ -154,16 +220,18 @@ class VM(BaseIPCServer, object):
             Start a new commit and adds BEGINTRANS to it (every commit start with an BEGINTRANS instruction)
         """
         self.workspace = Commit()
-        self.workspace.diff.append(BeginTransaction())
+        self.workspace.append(BeginTransaction())
 
     def end_transaction(self):
         """
             Ends the current commit and adds ENDTRANS to it (every commit ends with a ENDTRANS instruction)
         """
-        self.workspace.diff.append(EndTransaction())
+        self.workspace.append(EndTransaction())
         self.workspace = None
 
     def emit(self, log):
+        if not iterable(log):
+            raise ValueError('Log to emit must be iterable.')
         if not self.workspace:
             self.begin_transaction()
         self.raw_emit(log)
@@ -171,7 +239,7 @@ class VM(BaseIPCServer, object):
     def raw_emit(self, log):
         for instruction in log:
             instruction(self)
-        self.workspace.diff.extend(log)
+        self.workspace.extend(log)
 
     def commit(self):
         if self.workspace:

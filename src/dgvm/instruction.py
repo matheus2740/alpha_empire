@@ -60,6 +60,9 @@ class Instruction(object):
     def __init__(self, *args):
         from datamodel import Datamodel
 
+        if len(self.arg_types) != self.n_args:
+            raise InvalidInstruction('Instruction %s has mismatching .n_args and .arg_types' % (type(self).__name__, ))
+
         if len(args) != self.n_args:
             raise BadInstructionCall('Wrong number of arguments to ' + str(self))
         for i, arg in enumerate(args):
@@ -74,7 +77,7 @@ class Instruction(object):
         map(lambda model: model._to_normal_state(), self.model_args)
 
     def mnemonize(self):
-        return str(self.opcode) + ''.join(' %s' % self.args[n] for n in xrange(self.n_args))
+        return str(self.mnemonic) + ''.join(' %s' % self.args[n] for n in xrange(self.n_args))
 
     @staticmethod
     def execute(cls, vm, *args):
@@ -134,6 +137,9 @@ class MemberInstructionWrapper(object):
 
     def __get__(self, instance, owner):
         if instance:
+            if instance.is_destroyed():
+                from datamodel_meta import ModelDestroyedError
+                raise ModelDestroyedError()
             return MemberInstructionView(self.i, instance)
         else:
             return self.i

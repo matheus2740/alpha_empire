@@ -5,9 +5,10 @@ __author__ = 'salvia'
 
 
 class DatamodelStates(object):
-        NORMAL = 0
-        USER_CHANGING = 1
-        ENGINE_CHANGING = 2
+    NORMAL = 0
+    USER_CHANGING = 1
+    ENGINE_CHANGING = 2
+    DESTROYED = 3
 
 
 class DatamodelMeta(type):
@@ -34,6 +35,10 @@ class VMAttributeView(Proxy):
 
     def _set(self, val):
         self.__dict__['_obj'] = val
+
+
+class ModelDestroyedError(Exception):
+    pass
 
 
 class VMAttribute(object):
@@ -69,9 +74,14 @@ class VMAttribute(object):
             getattr(instance, self.attr_name)._set(value)
 
     def __get__(self, instance, owner):
+
+        if instance._state == DatamodelStates.DESTROYED:
+            raise ModelDestroyedError()
+
         return self._get_wrapped_value(instance)
 
     def __set__(self, instance, value):
+
         if self.coerce_val:
             value = self.attr_type(value)
 
@@ -88,10 +98,14 @@ class VMAttribute(object):
         def engine_changing():
             self._set_wrapped_value(instance, value)
 
+        def destroyed():
+            raise ModelDestroyedError()
+
         actions = {
             DatamodelStates.NORMAL: normal,
             DatamodelStates.USER_CHANGING: user_changing,
-            DatamodelStates.ENGINE_CHANGING: engine_changing
+            DatamodelStates.ENGINE_CHANGING: engine_changing,
+            DatamodelStates.DESTROYED: destroyed
         }
 
         actions[instance._state]()

@@ -35,13 +35,13 @@ class InstantiateModel(Instruction):
     arg_types = (object, dict)
 
     def __init__(self, *args):
-        super(InstantiateModel, self).__init__(*args)
         from src.dgvm.datamodel import Datamodel
-        InstantiateModel.arg_types = (Datamodel, dict)
+        type(self).arg_types = (Datamodel, dict)
+        super(InstantiateModel, self).__init__(*args)
 
     @classmethod
     def execute(cls, vm, model_instance, attrs):
-        vm.heap.data[id(model_instance)] = model_instance
+        vm.heap[id(model_instance)] = model_instance
 
 
 class DestroyInstance(Instruction):
@@ -52,10 +52,10 @@ class DestroyInstance(Instruction):
     arg_types = (object,)
 
     def __init__(self, *args):
-        super(DestroyInstance, self).__init__(*args)
         from src.dgvm.datamodel import Datamodel
-        InstantiateModel.arg_types = (Datamodel,)
+        type(self).arg_types = (Datamodel,)
+        super(DestroyInstance, self).__init__(*args)
 
     @classmethod
     def execute(cls, vm, model_instance):
-        vm.heap.data[id(model_instance)] = model_instance
+        del vm.heap[id(model_instance)]

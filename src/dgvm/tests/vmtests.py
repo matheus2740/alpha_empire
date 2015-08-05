@@ -1,6 +1,6 @@
 import os
 import unittest
-from src.dgvm.datamodel_meta import ConstraintViolation
+from src.dgvm.datamodel_meta import ConstraintViolation, ModelDestroyedError
 from src.dgvm.ipc.client import BaseIPCClient
 from src.dgvm.builtin_instructions import BeginTransaction, EndTransaction, InstantiateModel
 from src.dgvm.vm import VM
@@ -47,12 +47,52 @@ class VMTests(unittest.TestCase):
 
             commit = vm.get_last_commit()
 
-            assert commit.hash is not None
-            assert isinstance(commit.diff[0], BeginTransaction)
-            assert isinstance(commit.diff[1], InstantiateModel)
-            assert isinstance(commit.diff[2], InstantiateModel)
-            assert isinstance(commit.diff[3], EndTransaction)
-            assert vm.heap.data[id(i)] == i
+            assert hash(commit) is not None
+            assert isinstance(commit[0], BeginTransaction)
+            assert isinstance(commit[1], InstantiateModel)
+            assert isinstance(commit[2], InstantiateModel)
+            assert isinstance(commit[3], EndTransaction)
+            assert vm.heap[id(i)] == i
+
+    def test_destroy(self):
+
+        with VM('alpha_empire_test') as vm:
+            i = Infantry(
+                vm,
+                n_units=1,
+                attack_dmg=1,
+                armor=0,
+                health=1,
+                action=10,
+                position=(1, 1),
+                board=Board(vm, width=20, height=20)
+            )
+
+            vm.commit()
+
+            commit = vm.get_last_commit()
+
+            assert hash(commit) is not None
+            assert isinstance(commit[0], BeginTransaction)
+            assert isinstance(commit[1], InstantiateModel)
+            assert isinstance(commit[2], InstantiateModel)
+            assert isinstance(commit[3], EndTransaction)
+            assert vm.heap[id(i)] == i
+
+            i.destroy()
+
+            vm.commit()
+
+            assert vm.heap.get(id(i)) is None
+            assert len(vm.heap) == 1  # board object still exists, so actual heap utilized is 1
+
+            try:
+                i.move(2, 2)
+                assert False
+            except ModelDestroyedError:
+                pass
+            except:
+                assert False
 
     def test_move(self):
 
@@ -72,12 +112,12 @@ class VMTests(unittest.TestCase):
 
             commit = vm.get_last_commit()
 
-            assert commit.hash is not None
-            assert isinstance(commit.diff[0], BeginTransaction)
-            assert isinstance(commit.diff[1], InstantiateModel)
-            assert isinstance(commit.diff[2], InstantiateModel)
-            assert isinstance(commit.diff[3], EndTransaction)
-            assert vm.heap.data[id(i)] == i
+            assert hash(commit) is not None
+            assert isinstance(commit[0], BeginTransaction)
+            assert isinstance(commit[1], InstantiateModel)
+            assert isinstance(commit[2], InstantiateModel)
+            assert isinstance(commit[3], EndTransaction)
+            assert vm.heap[id(i)] == i
 
             i.move(2, 2)
 
@@ -85,8 +125,8 @@ class VMTests(unittest.TestCase):
 
             commit = vm.get_last_commit()
 
-            assert commit.hash is not None
-            assert isinstance(commit.diff[1], Infantry.move)
+            assert hash(commit) is not None
+            assert isinstance(commit[1], Infantry.move)
             assert i.position == (2, 2)
             pass
 
@@ -114,12 +154,12 @@ class VMTests(unittest.TestCase):
 
             commit = vm.get_last_commit()
 
-            assert commit.hash is not None
-            assert isinstance(commit.diff[0], BeginTransaction)
-            assert isinstance(commit.diff[1], InstantiateModel)
-            assert isinstance(commit.diff[2], InstantiateModel)
-            assert isinstance(commit.diff[3], EndTransaction)
-            assert vm.heap.data[id(i)] == i
+            assert hash(commit) is not None
+            assert isinstance(commit[0], BeginTransaction)
+            assert isinstance(commit[1], InstantiateModel)
+            assert isinstance(commit[2], InstantiateModel)
+            assert isinstance(commit[3], EndTransaction)
+            assert vm.heap[id(i)] == i
             assert i.position == (1, 1)
             pass
 
@@ -145,12 +185,12 @@ class VMTests(unittest.TestCase):
 
             commit = vm.get_last_commit()
 
-            assert commit.hash is not None
-            assert isinstance(commit.diff[0], BeginTransaction)
-            assert isinstance(commit.diff[1], InstantiateModel)
-            assert isinstance(commit.diff[2], InstantiateModel)
-            assert isinstance(commit.diff[3], EndTransaction)
-            assert vm.heap.data[id(i)] == i
+            assert hash(commit) is not None
+            assert isinstance(commit[0], BeginTransaction)
+            assert isinstance(commit[1], InstantiateModel)
+            assert isinstance(commit[2], InstantiateModel)
+            assert isinstance(commit[3], EndTransaction)
+            assert vm.heap[id(i)] == i
             assert i.position == (1, 1)
             pass
 
