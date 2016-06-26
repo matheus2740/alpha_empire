@@ -1,4 +1,4 @@
-from src.dgvm.instruction import Instruction
+from instruction import Instruction
 
 __author__ = 'salvia'
 
@@ -6,7 +6,7 @@ __author__ = 'salvia'
 class BeginTransaction(Instruction):
     # BEGINTRANS
     opcode = 1
-    mnemonic = 'BEGINTRANS'
+    mnemonic = 'VM_BEGINTRANS'
     n_args = 0
     arg_types = tuple()
 
@@ -18,7 +18,7 @@ class BeginTransaction(Instruction):
 class EndTransaction(Instruction):
     # ENDTRANS
     opcode = 2
-    mnemonic = 'ENDTRANS'
+    mnemonic = 'VM_ENDTRANS'
     n_args = 0
     arg_types = tuple()
 
@@ -35,13 +35,13 @@ class InstantiateModel(Instruction):
     arg_types = (object, dict)
 
     def __init__(self, *args):
-        from src.dgvm.datamodel import Datamodel
+        from dgvm.datamodel import Datamodel
         type(self).arg_types = (Datamodel, dict)
         super(InstantiateModel, self).__init__(*args)
 
     @classmethod
     def execute(cls, vm, model_instance, attrs):
-        vm.heap[id(model_instance)] = model_instance
+        pass
 
 
 class DestroyInstance(Instruction):
@@ -52,10 +52,16 @@ class DestroyInstance(Instruction):
     arg_types = (object,)
 
     def __init__(self, *args):
-        from src.dgvm.datamodel import Datamodel
+        from dgvm.datamodel import Datamodel
         type(self).arg_types = (Datamodel,)
         super(DestroyInstance, self).__init__(*args)
 
     @classmethod
     def execute(cls, vm, model_instance):
-        del vm.heap[id(model_instance)]
+
+        for name, attr in model_instance._vmattrs.items():
+            attr._destroy(model_instance)
+
+
+#TODO: implement CollapseHeap, an instruction which collapses all treects in the Heap, saving memory and access time,
+#TODO: but making commit undo impossible.

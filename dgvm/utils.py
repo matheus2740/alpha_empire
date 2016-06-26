@@ -137,3 +137,17 @@ def iterable(a):
         return True
     except TypeError:
         return False
+
+
+def to_str(x):
+    if isinstance(x, unicode):
+        return x.encode('utf-8')
+    return str(x)
+
+
+def to_unicode(x):
+    if isinstance(x, str):
+        return x.decode('utf-8')
+    return unicode(x)
+
+

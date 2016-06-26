@@ -2,8 +2,8 @@ import socket
 import time
 import sys
 import os
-from src.dgvm.ipc.command import Command
-from src.dgvm.ipc.protocol import BaseIPCProtocol
+from command import Command
+from protocol import BaseIPCProtocol
 
 __author__ = 'salvia'
 

@@ -1,10 +1,10 @@
 from collections import deque
 import os
 import hashlib
-from src.dgvm.datamodel_meta import DatamodelMeta
-from src.dgvm.instruction import Instruction, InvalidInstruction, MemberInstructionWrapper
-from src.dgvm.ipc.server import BaseIPCServer
-from src.dgvm.builtin_instructions import *
+from datamodel.meta import DatamodelMeta
+from instruction import InvalidInstruction, MemberInstructionWrapper
+from ipc.server import BaseIPCServer
+from builtin_instructions import *
 from datamodel import InvalidModel, Datamodel
 from utils import iterable
 import datamodel
@@ -15,7 +15,12 @@ __author__ = 'salvia'
 def file_here(file):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), file)
 
-
+# TODO: implement treect, i.e. a dict of dicts with keys = key.split('/')
+# ---
+# TODO: use treect as __data instead of dict
+# ---
+# TODO: make Heap historical and collapseable,
+# TODO: i.e. each commit is a new treect which fallsback to the last commit's treect on key not found.
 class Heap(object):
 
     def __init__(self, size):
@@ -24,12 +29,15 @@ class Heap(object):
         self.__data = {}
 
     def set(self, address, object):
-        if not isinstance(address, int):
-            raise ValueError('Heap address must be of type int, not ' + type(address).__name__)
+        if not isinstance(address, (int, str, unicode)):
+            raise ValueError('Heap address must be of type int or string, not ' + type(address).__name__)
         self.__data[address] = object
 
-    def get(self, item):
-        return self.__data.get(item)
+    def get(self, item, default=None):
+        return self.__data.get(item, default)
+
+    def delete(self, item):
+        del self.__data[item]
 
     def percent_used(self):
         return float(len(self.__data)) / float(self.size) * 100
@@ -51,6 +59,12 @@ class Heap(object):
 
     def __str__(self):
         return '<Heap object at %s, %s%% used, with size=%s>' % (id(self), self.percent_used(), self.size)
+
+    def dump(self):
+        print
+        for k, v in self.__data.items():
+            print ('%s \t %s' % (k, v)).expandtabs(40)
+        print
 
 
 class VMMeta(type):
@@ -115,14 +129,12 @@ class Commit(object):
 
     def __str__(self):
         s = []
-        for i in xrange(min(len(self.__diff), 10)):
+        for i in range(min(len(self.__diff), 10)):
             s += [str(self.__diff[i])]
         return '<Commit object at %s with instructions: [%s]>' % (id(self), ', '.join(s))
 
 
-# BaseIPCServer is old-styled (Python ServerSocker is old-style, sadly),
-# so we need to inherit from object also, if we want metaclasses to work.
-class VM(BaseIPCServer, object):
+class VM(BaseIPCServer):
     __metaclass__ = VMMeta
 
     def __init__(self, definitions_package):
@@ -162,7 +174,7 @@ class VM(BaseIPCServer, object):
         self.datamodels = list(models)
 
     def validate_model(self, model):
-        for m in datamodel.required_methods:
+        for m in datamodel.model.required_methods:
             if m not in model.__dict__ or model.__dict__[m] is getattr(Datamodel, m):
                 raise InvalidModel('%s does not define %s' % (model.__name__, m))
 
@@ -210,36 +222,33 @@ class VM(BaseIPCServer, object):
 
         return True, 'OK'
 
-    def startup(self, *args, **kwargs):
-        BaseIPCServer.startup(self, *args, **kwargs)
-
     # -----
 
     def begin_transaction(self):
         """
-            Start a new commit and adds BEGINTRANS to it (every commit start with an BEGINTRANS instruction)
+            Start a new commit and adds VM_BEGINTRANS to it (every commit start with an VM_BEGINTRANS instruction)
         """
+        if self.workspace:
+            raise Exception('Cannot begin transaction with an uncomitted transaction (dirty workspace).')
         self.workspace = Commit()
         self.workspace.append(BeginTransaction())
 
     def end_transaction(self):
         """
-            Ends the current commit and adds ENDTRANS to it (every commit ends with a ENDTRANS instruction)
+            Ends the current commit and adds VM_ENDTRANS to it (every commit ends with a VM_ENDTRANS instruction)
         """
         self.workspace.append(EndTransaction())
         self.workspace = None
 
-    def emit(self, log):
-        if not iterable(log):
-            raise ValueError('Log to emit must be iterable.')
+    def execute(self, instructions):
+        if not iterable(instructions):
+            raise ValueError('Argument must be a list of instructions, not ' + type(instructions).__name__)
         if not self.workspace:
             self.begin_transaction()
-        self.raw_emit(log)
 
-    def raw_emit(self, log):
-        for instruction in log:
+        for instruction in instructions:
             instruction(self)
-        self.workspace.extend(log)
+        self.workspace.extend(instructions)
 
     def commit(self):
         if self.workspace:
@@ -247,6 +256,15 @@ class VM(BaseIPCServer, object):
             self.commits.append(self.workspace)
             self.end_transaction()
 
+    def rollback(self):
+        # TODO: implement rollback
+        pass
+
     def get_last_commit(self):
         return self.commits[-1]
+
+
+#TODO: implement commit log/history
+#TODO: implement serialization of heap and commit logs
+#TODO: implement VM compilation
 

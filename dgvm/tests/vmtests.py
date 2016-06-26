@@ -1,11 +1,11 @@
 import os
 import unittest
-from src.dgvm.datamodel_meta import ConstraintViolation, ModelDestroyedError
-from src.dgvm.ipc.client import BaseIPCClient
-from src.dgvm.builtin_instructions import BeginTransaction, EndTransaction, InstantiateModel
-from src.dgvm.vm import VM
+from dgvm.datamodel.meta import ModelDestroyedError
+from dgvm.constraints import ConstraintViolation
+from dgvm.ipc.client import BaseIPCClient
+from dgvm.builtin_instructions import BeginTransaction, EndTransaction, InstantiateModel
+from dgvm.vm import VM
 from alpha_empire_test.datamodels import Infantry, Board
-import time
 __author__ = 'salvia'
 
 
@@ -52,7 +52,50 @@ class VMTests(unittest.TestCase):
             assert isinstance(commit[1], InstantiateModel)
             assert isinstance(commit[2], InstantiateModel)
             assert isinstance(commit[3], EndTransaction)
-            assert vm.heap[id(i)] == i
+            # TODO: make a full blown check, just like the call below, but for all attributes in the model
+            # assert vm.heap[id(i)] == i
+
+    def test_rollback(self):
+
+        with VM('alpha_empire_test') as vm:
+            i = Infantry(
+                vm,
+                n_units=1,
+                attack_dmg=1,
+                armor=0,
+                health=1,
+                action=10,
+                position=(1, 1),
+                board=Board(vm, width=20, height=20)
+            )
+
+            vm.commit()
+
+            commit = vm.get_last_commit()
+
+            assert hash(commit) is not None
+            assert isinstance(commit[0], BeginTransaction)
+            assert isinstance(commit[1], InstantiateModel)
+            assert isinstance(commit[2], InstantiateModel)
+            assert isinstance(commit[3], EndTransaction)
+            # TODO: make a full blown check, just like the call below, but for all attributes in the model
+            # assert vm.heap[id(i)] == i
+
+            i.move(2, 2)
+
+            vm.rollback()
+
+            commit = vm.get_last_commit()
+
+            assert i.position == (1, 1)
+            assert hash(commit) is not None
+            assert isinstance(commit[0], BeginTransaction)
+            assert isinstance(commit[1], InstantiateModel)
+            assert isinstance(commit[2], InstantiateModel)
+            assert isinstance(commit[3], EndTransaction)
+            # TODO: make a full blown check, just like the call below, but for all attributes in the model
+            # assert vm.heap['Board/OBJ/1/_id'] == i.id
+            pass
 
     def test_destroy(self):
 
@@ -77,14 +120,19 @@ class VMTests(unittest.TestCase):
             assert isinstance(commit[1], InstantiateModel)
             assert isinstance(commit[2], InstantiateModel)
             assert isinstance(commit[3], EndTransaction)
-            assert vm.heap[id(i)] == i
+            # TODO: make a full blown check, just like the call below, but for all attributes in the model
+            # assert vm.heap[id(i)] == i
 
             i.destroy()
 
             vm.commit()
 
-            assert vm.heap.get(id(i)) is None
-            assert len(vm.heap) == 1  # board object still exists, so actual heap utilized is 1
+            assert len(vm.heap) == 5  # board object still exists, so actual heap utilized is 5
+            assert vm.heap['Board/OBJ/1/_id'] == 1
+            assert vm.heap['Board/OBJ/1/height'] == 20
+            assert vm.heap['Board/OBJ/1/width'] == 20
+            assert vm.heap['Infantry/IDCOUNTER'] == 1
+            assert vm.heap['Board/IDCOUNTER'] == 1
 
             try:
                 i.move(2, 2)
@@ -117,7 +165,8 @@ class VMTests(unittest.TestCase):
             assert isinstance(commit[1], InstantiateModel)
             assert isinstance(commit[2], InstantiateModel)
             assert isinstance(commit[3], EndTransaction)
-            assert vm.heap[id(i)] == i
+            # TODO: make a full blown check, just like the call below, but for all attributes in the model
+            # assert vm.heap[id(i)] == i
 
             i.move(2, 2)
 
@@ -159,7 +208,8 @@ class VMTests(unittest.TestCase):
             assert isinstance(commit[1], InstantiateModel)
             assert isinstance(commit[2], InstantiateModel)
             assert isinstance(commit[3], EndTransaction)
-            assert vm.heap[id(i)] == i
+            # TODO: make a full blown check, just like the call below, but for all attributes in the model
+            # assert vm.heap[id(i)] == i
             assert i.position == (1, 1)
             pass
 
@@ -190,7 +240,8 @@ class VMTests(unittest.TestCase):
             assert isinstance(commit[1], InstantiateModel)
             assert isinstance(commit[2], InstantiateModel)
             assert isinstance(commit[3], EndTransaction)
-            assert vm.heap[id(i)] == i
+            # TODO: make a full blown check, just like the call below, but for all attributes in the model
+            # assert vm.heap[id(i)] == i
             assert i.position == (1, 1)
             pass
 
@@ -218,7 +269,8 @@ class VMTests(unittest.TestCase):
             assert isinstance(commit[3], EndTransaction)
             assert i.position == (0, 0)
             assert i.tag == None
-            assert vm.heap[id(i)] == i
+            # TODO: make a full blown check, just like the call below, but for all attributes in the model
+            # assert vm.heap[id(i)] == i
 
         with VM('alpha_empire_test') as vm:
             i = Infantry(
@@ -243,7 +295,8 @@ class VMTests(unittest.TestCase):
             assert isinstance(commit[3], EndTransaction)
             assert i.position == (0, 0)
             assert i.tag == 'Hello!'
-            assert vm.heap[id(i)] == i
+            # TODO: make a full blown check, just like the call below, but for all attributes in the model
+            # assert vm.heap[id(i)] == i
 
         with VM('alpha_empire_test') as vm:
             try:

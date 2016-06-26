@@ -1,9 +1,10 @@
 __author__ = 'salvia'
 
-from src.dgvm.datamodel import Datamodel
-from src.dgvm.datamodel_meta import constraint, IntegerVMAttribute, PairVMAttribute, ForeignModelVMAttribute, StringVMAttribute
+from dgvm.datamodel import Datamodel
+from dgvm.datamodel import Integer, Pair, ForeignModel, String
+from dgvm.constraints import constraint
 from board import Board
-from src.dgvm.instruction import instruction
+from dgvm.instruction import instruction
 import math
 
 
@@ -12,19 +13,19 @@ class Infantry(Datamodel):
     Preliminary infantry datamodel,
     used to test DGVM
     """
-    n_units = IntegerVMAttribute(null=False)
-    attack_dmg = IntegerVMAttribute(null=False)
-    armor = IntegerVMAttribute(null=False)
-    health = IntegerVMAttribute(null=False)
-    action = IntegerVMAttribute(null=False)
-    tag = StringVMAttribute(null=True)
-    position = PairVMAttribute(int, null=False, default=(0, 0))
-    board = ForeignModelVMAttribute(Board, null=False)
+    n_units = Integer(null=False)
+    attack_dmg = Integer(null=False)
+    armor = Integer(null=False)
+    health = Integer(null=False)
+    action = Integer(null=False)
+    tag = String(null=True)
+    position = Pair(int, null=False, default=(0, 0))
+    board = ForeignModel(Board, null=False)
 
     @instruction(opcode=101, mnemonic='MOVE', args=(Datamodel, int, int), onself=True)
     def move(inst, infantry, x, y):
-        dx = (x - infantry.position[0]) ** 2
-        dy = (y - infantry.position[1]) ** 2
+        dx = (x - infantry.position.x) ** 2
+        dy = (y - infantry.position.y) ** 2
         d = dx + dy
         root = math.sqrt(d)
         infantry.action -= math.ceil(root)

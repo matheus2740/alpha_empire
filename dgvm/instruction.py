@@ -29,6 +29,9 @@ def raise_invalid(ins, arg):
 
 
 class InstructionMeta(type):
+    """
+        Instruction metaclass. Defines a str method for instruction classes, and do some creation checks.
+    """
 
     def __str__(self):
         return '<%s at %i: opcode=%i, n_arg=%i, mnemonic=%s>' % (self.__name__, id(self), self.opcode, self.n_args, self.mnemonic)
@@ -45,6 +48,11 @@ class InstructionMeta(type):
 
 
 class Instruction(object):
+    """
+        Base class for all VM instructions. Defines some initilization checks and execution checks.
+        It is important to note that Intructions are effectively run upon instantion, i.e. every Instruction instance
+        represents some operation that was done inside that. These generally only reside in the commit logs.
+    """
 
     __metaclass__ = InstructionMeta
 
@@ -104,6 +112,11 @@ class MemberInstruction(Instruction):
 
 
 class MemberInstructionView(object):
+    """
+        This class is a binding between a datamodel instance and an instruction.
+        An instance of MemberInstructionView is returned everytime an user access an member instruction
+        in an instance of a Datamodel. (e.g. m = MyDatamodel(); m.my_instruction() )
+    """
 
     def __init__(self, instr, instance):
         self.__dict__['instr'] = instr
@@ -119,26 +132,53 @@ class MemberInstructionView(object):
         instruction_class = self.__dict__['instr']
         model_instance = self.__dict__['instance']
         instruction = instruction_class(model_instance, *args, **kwargs)
-        model_instance.vm.emit([instruction])
+        model_instance.vm.execute([instruction])
         return None
 
 
 class MemberInstructionWrapper(object):
+    """
+        Wrapper that sits inside a Datamodel when the instruction decorator is used.
+    """
 
     def __init__(self, func, opcode, mnemonic, args, onself):
+
+        # name of the attribute inside the Datamodel
         self.attr_name = ""
+
+        # name of the instruction
         self.name = ""
+
+        # inner isntruction function, defined in the Datamodel. Effectively the decorate function.
         self.func = func
+
+        # instruction opcode
         self.opcode = opcode
+
+        # instruction mnemonic
         self.mnemonic = mnemonic
+
+        # list of argument types received by the instruction
         self.args = args
+
+        # flag indicating wheter the instruction operates on the datamodel which defined it
         self.onself = onself
+
+        # The actual instruction object. inherits from `MemberInstruction` and has a metaclass of `InstructionMeta`
         self.i = None
 
     def __get__(self, instance, owner):
+        """
+            If this method is called by an instance of a datamodel, we return an MemberInstructionView, which is a functor
+            the user can invoke. This is the use case where we are actually executing an instruction.
+            Else, we assume the user is trying to get the instruction itself (something like Datamodel.my_instruction),
+            to use for isinstance checks or something. In this case we return the actual instruction object.
+        """
         if instance:
+
+            # we only allow the user to execute instructions on live objects, i.e. those that have not been destroyed.
             if instance.is_destroyed():
-                from datamodel_meta import ModelDestroyedError
+                from datamodel.meta import ModelDestroyedError
                 raise ModelDestroyedError()
             return MemberInstructionView(self.i, instance)
         else:
@@ -162,7 +202,7 @@ class MemberInstructionWrapper(object):
 
 class instruction(object):
     """
-        Decorator for inline instructions
+        Decorator for inline instructions. Returns a MemberInstructionWrapper.
     """
 
     def __init__(self, opcode, mnemonic, args, onself=True):
