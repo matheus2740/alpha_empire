@@ -2,6 +2,7 @@ from collections import deque
 import os
 import hashlib
 from datamodel.meta import DatamodelMeta
+from dgvm.data_structures import Heap
 from instruction import InvalidInstruction, MemberInstructionWrapper
 from ipc.server import BaseIPCServer
 from builtin_instructions import *
@@ -14,57 +15,6 @@ __author__ = 'salvia'
 
 def file_here(file):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), file)
-
-# TODO: implement treect, i.e. a dict of dicts with keys = key.split('/')
-# ---
-# TODO: use treect as __data instead of dict
-# ---
-# TODO: make Heap historical and collapseable,
-# TODO: i.e. each commit is a new treect which fallsback to the last commit's treect on key not found.
-class Heap(object):
-
-    def __init__(self, size):
-        super(Heap, self).__init__()
-        self.size = size
-        self.__data = {}
-
-    def set(self, address, object):
-        if not isinstance(address, (int, str, unicode)):
-            raise ValueError('Heap address must be of type int or string, not ' + type(address).__name__)
-        self.__data[address] = object
-
-    def get(self, item, default=None):
-        return self.__data.get(item, default)
-
-    def delete(self, item):
-        del self.__data[item]
-
-    def percent_used(self):
-        return float(len(self.__data)) / float(self.size) * 100
-
-    def __len__(self):
-        return len(self.__data)
-
-    def __getitem__(self, item):
-        return self.__data[item]
-
-    def __setitem__(self, key, value):
-        self.__data[key] = value
-        
-    def __delitem__(self, key):
-        del self.__data[key]
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        return '<Heap object at %s, %s%% used, with size=%s>' % (id(self), self.percent_used(), self.size)
-
-    def dump(self):
-        print
-        for k, v in self.__data.items():
-            print ('%s \t %s' % (k, v)).expandtabs(40)
-        print
 
 
 class VMMeta(type):
