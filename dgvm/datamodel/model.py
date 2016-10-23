@@ -23,8 +23,18 @@ class Datamodel(object):
 
     _state = DatamodelStates.NORMAL
 
-    def __init__(self, vm, **kwargs):
+    _lock = Lock()
+
+    def __init__(self, vm, noinit=False, **kwargs):
+        from dgvm.datamodel import ForeignModel
+        from dgvm.datamodel import ntuple
+
         self.vm = vm
+
+        self._state = DatamodelStates.NORMAL
+
+        if noinit:
+            return
 
         # set the model state to ENGINE_CHANGING, which permits attribute setting without checks and constraints
         self._state = DatamodelStates.ENGINE_CHANGING
@@ -44,6 +54,8 @@ class Datamodel(object):
             # value is passed in ctor, just go ahead
             if k in kwargs and kwargs[k] is not None:
                 setattr(self, k, kwargs[k])
+            elif isinstance(v, ForeignModel) and k + '_id' in kwargs:
+                setattr(self, k, v.subtype.get_by_id(self.vm, kwargs[k + '_id']))
             # no value provided in ctor, do we require it?
             else:
                 # nope, we don't require it, just leave it as None
@@ -73,10 +85,10 @@ class Datamodel(object):
         self._state = DatamodelStates.DESTROYED
 
     def __destroy_instruction(self):
-        return DestroyInstance(self)
+        return DestroyInstance(self.__class__, self.id)
 
     def __instantiate_instruction(self):
-        return InstantiateModel(self, self._vmattrs)
+        return InstantiateModel(self.__class__, self._attrs)
 
     def _to_user_changing_state(self):
         self._state = DatamodelStates.USER_CHANGING
@@ -92,7 +104,14 @@ class Datamodel(object):
         }
 
         for name, attr in self._vmattrs.items():
-            val = attr._get_wrapped_data(self)
+            if name == '_id':
+                d['attributes'].append({
+                    'class': type(attr).__name__,
+                    'name': 'id',
+                    'value': self.id
+                })
+                continue
+            val = attr._get_wrapped_value(self)
             if unwrap:
                 d['attributes'].append({
                     'class': type(attr).__name__,
@@ -102,21 +121,47 @@ class Datamodel(object):
             else:
                 d['attributes'].append({
                     'class': type(val).__name__ if isinstance(val, Datamodel) else type(attr).__name__,
-                    'name': attr.name,
+                    'name': attr.name + '_id' if isinstance(val, Datamodel) else attr.name,
                     'value': val.id if isinstance(val, Datamodel) else val
                 })
         return d
+
+    @property
+    def _attrs(self):
+        from dgvm.datamodel import ntuple
+
+        def make_serializeable(a):
+            if isinstance(a, (tuple, ntuple)):
+                return list(a)
+            return a
+
+        return {a['name']: make_serializeable(a['value']) for a in self.data_dict()['attributes']}
 
     @classmethod
     def _next_id(cls, vm):
         key = cls.__name__ + '/IDCOUNTER'
         val = None
 
-        with Lock() as lock:
+        with cls._lock:
             current_id = vm.heap.get(key) or 0
             val = current_id + 1
             vm.heap.set(key, val)
 
         return val
+
+    @classmethod
+    def get_by_id(cls, vm, id):
+
+        item = cls(vm, noinit=True)
+        item._state = DatamodelStates.ENGINE_CHANGING
+        item.id = id
+        for k, v in item._vmattrs.iteritems():
+            if k == 'id':
+                pass
+            setattr(item, k, vm.heap.get(v.attr_name(id=id)))
+
+        item._state = DatamodelStates.NORMAL
+        return item
+
 
 

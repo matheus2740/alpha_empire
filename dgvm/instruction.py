@@ -1,3 +1,5 @@
+import json
+
 __author__ = 'salvia'
 
 
@@ -81,11 +83,58 @@ class Instruction(object):
 
     def __call__(self, vm):
         map(lambda model: model._to_user_changing_state(), self.model_args)
-        self.execute(vm, *self.args)
-        map(lambda model: model._to_normal_state(), self.model_args)
+        try:
+            self.execute(vm, *self.args)
+        except Exception as e:
+            raise e
+        finally:
+            map(lambda model: model._to_normal_state(), self.model_args)
 
     def mnemonize(self):
-        return str(self.mnemonic) + ''.join(' %s' % self.args[n] for n in xrange(self.n_args))
+        return json.dumps(self._mnemonize())
+
+    def _mnemonize(self):
+        from dgvm.datamodel import Datamodel, ntuple
+        from dgvm.datamodel.meta import DatamodelMeta
+
+        def serialize(a):
+            if isinstance(a, DatamodelMeta):
+                return ['DatamodelMeta', a.__name__]
+            if isinstance(a, Datamodel):
+                return [a.__class__.__name__, a.id]
+            if isinstance(a, (tuple, ntuple)):
+                return list(a)
+
+            return a
+
+        return [self.mnemonic] + [serialize(a) for a in self.args]
+
+    @classmethod
+    def load(cls, vm, mnenomic_form):
+        parts = json.loads(mnenomic_form)
+        return cls._load(vm, parts)
+
+    @classmethod
+    def _load(cls, vm, parts):
+
+        cls = vm.instructions['mnemonics'][parts[0]]
+
+        if len(parts) != cls.n_args + 1:
+            raise InvalidInstruction('Cannot load mnemonic form: %s' % (mnenomic_form, ))
+
+        def deserialize(a):
+            if isinstance(a, list) and len(a) == 2 and a[0] == 'DatamodelMeta':
+                return vm.get_model(a[1])
+            if isinstance(a, list) and len(a) == 2 and a[0] in vm.datamodels_idx:
+                return vm.get_model(a[0]).get_by_id(vm, a[1])
+
+            return a
+
+        args = parts[1:]
+        parsed_args = [deserialize(a) for a in args]
+
+        return cls(*parsed_args)
+
 
     @staticmethod
     def execute(cls, vm, *args):
@@ -118,21 +167,20 @@ class MemberInstructionView(object):
         in an instance of a Datamodel. (e.g. m = MyDatamodel(); m.my_instruction() )
     """
 
-    def __init__(self, instr, instance):
-        self.__dict__['instr'] = instr
+    def __init__(self, wrapper, instance):
+        self.__dict__['wrapper'] = wrapper
         self.__dict__['instance'] = instance
 
     def __getattr__(self, item):
-        return getattr(self.__dict__['instr'], item)
+        return getattr(self.__dict__['wrapper'].i, item)
 
     def __setattr__(self, key, value):
-        return setattr(self.__dict__['instr'], key, value)
+        return setattr(self.__dict__['wrapper'].i, key, value)
 
     def __call__(self, *args, **kwargs):
-        instruction_class = self.__dict__['instr']
         model_instance = self.__dict__['instance']
-        instruction = instruction_class(model_instance, *args, **kwargs)
-        model_instance.vm.execute([instruction])
+        mnemonic = self.__dict__['wrapper'].mnemonic
+        model_instance.vm.execute_member_instruction(mnemonic=mnemonic, model_instance=(model_instance.__class__.__name__, model_instance.id), args=args, kwargs=kwargs)
         return None
 
 
@@ -180,23 +228,25 @@ class MemberInstructionWrapper(object):
             if instance.is_destroyed():
                 from datamodel.meta import ModelDestroyedError
                 raise ModelDestroyedError()
-            return MemberInstructionView(self.i, instance)
+            return MemberInstructionView(self, instance)
         else:
             return self.i
 
     def __set__(self, instance, value):
         raise ValueError('Cannot set MemberInstruction after its creation')
 
-    def register(self, vm, owner):
+    def create(self, owner):
         self.i = InstructionMeta(self.func.__name__, (MemberInstruction,), {
             'opcode': self.opcode,
             'mnemonic': self.mnemonic,
             'n_args': len(self.args),
             'arg_types': self.args,
             'owner': owner,
-            'onself': self.onself
+            'onself': self.onself,
         })
         self.i.execute = staticmethod(self.func)
+
+    def register(self, vm):
         vm.add_instruction(self.i)
 
 

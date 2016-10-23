@@ -1,4 +1,6 @@
-from instruction import Instruction
+import json
+
+from instruction import Instruction, InvalidInstruction
 
 __author__ = 'salvia'
 
@@ -35,8 +37,8 @@ class InstantiateModel(Instruction):
     arg_types = (object, dict)
 
     def __init__(self, *args):
-        from dgvm.datamodel import Datamodel
-        type(self).arg_types = (Datamodel, dict)
+        from dgvm.datamodel.meta import DatamodelMeta
+        type(self).arg_types = (DatamodelMeta, dict)
         super(InstantiateModel, self).__init__(*args)
 
     @classmethod
@@ -48,19 +50,19 @@ class DestroyInstance(Instruction):
     # DESTROY model_instance
     opcode = 4
     mnemonic = 'DESTROY'
-    n_args = 1
-    arg_types = (object,)
+    n_args = 2
+    arg_types = (object, int)
 
     def __init__(self, *args):
-        from dgvm.datamodel import Datamodel
-        type(self).arg_types = (Datamodel,)
+        from dgvm.datamodel.meta import DatamodelMeta
+        type(self).arg_types = (DatamodelMeta, int)
         super(DestroyInstance, self).__init__(*args)
 
     @classmethod
-    def execute(cls, vm, model_instance):
+    def execute(cls, vm, model_class, model_id):
 
-        for name, attr in model_instance._vmattrs.items():
-            attr._destroy(model_instance)
+        for name, attr in model_class._vmattrs.items():
+            attr._destroy(id=model_id, vm=vm)
 
 
 #TODO: implement CollapseHeap, an instruction which collapses all treects in the Heap, saving memory and access time,

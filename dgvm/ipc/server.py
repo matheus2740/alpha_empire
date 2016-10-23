@@ -87,6 +87,12 @@ class TCPIPCServer(object):
 
         while True:
 
+            ppid = os.getppid()
+
+            if ppid == 1:
+                print 'I Became orphaned! I cant live like this!'
+                os._exit(1)
+
             try:
                 sd = self.shutdown_queue.get(True, .001)
                 if sd == 'SHUTDOWN':
@@ -154,14 +160,13 @@ class TCPIPCServer(object):
             try:
                 # good path. Funtion exists and returns an object.
                 result = sv._quiver[fname](*args, **kwargs)
-            except:
+                return Command.FunctionCallResponse(result)
+            except Exception as e:
                 # function execution throws exception
-                result = Command.Traceback(traceback.format_exc())
+                return Command.Traceback(traceback.format_exc(), e.message)
         else:
             # no such funtion
-            result = Command.Raise('No Such Function', fname)
-
-        return Command.FunctionCallResponse(result)
+            return Command.Raise('No Such Function', fname)
 
 
 class BaseIPCServer(object):

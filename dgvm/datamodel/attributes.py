@@ -156,4 +156,8 @@ class Sextet(TypedVMAttribute):
 
 
 class ForeignModel(TypedVMAttribute):
-    pass
+
+    def _get_wrapped_value(self, instance):
+        attr_name = self.attr_name(instance)
+        id = instance.vm.heap.get(attr_name)
+        return self.subtype.get_by_id(instance.vm, id)

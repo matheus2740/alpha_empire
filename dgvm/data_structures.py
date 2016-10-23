@@ -184,7 +184,6 @@ class Heap(object):
         self.size = size
         self.__data = deque([Treect()])
         self.__lock = threading.RLock()
-        self.__count = 0
 
     def set(self, address, obj):
         self[address] = obj
@@ -225,13 +224,11 @@ class Heap(object):
                     del t[k]
         return t
 
-    def describe(self):
-
-        for k, v in self.make_collapsed().all_items():
-            print '%s%s%s' % (k, ((80 - len(k)) * ' '), v)
-
     def __len__(self):
-        return self.__count
+        c = 0
+        for _, __ in self.make_collapsed().all_items():
+            c += 1
+        return c
 
     def __getitem__(self, item):
         with self.__lock:
@@ -248,12 +245,10 @@ class Heap(object):
         if not isinstance(key, (int, str, unicode)):
             raise ValueError('Heap address must be of type int or string, not ' + type(key).__name__)
         with self.__lock:
-            self.__count += 1
             self.__data[-1][key] = value
 
     def __delitem__(self, key):
         with self.__lock:
-            self.__count -= 1
             self.__data[-1][key] = Heap_DeletedObj
 
     def __repr__(self):
@@ -264,6 +259,6 @@ class Heap(object):
 
     def dump(self):
         print
-        for k, v in self.__data.items():
-            print ('%s \t %s' % (k, v)).expandtabs(40)
+        for k, v in self.make_collapsed().all_items():
+            print '%s%s%s' % (k, ((80 - len(k)) * ' '), v)
         print

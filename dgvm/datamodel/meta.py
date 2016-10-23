@@ -1,3 +1,5 @@
+from dgvm.instruction import MemberInstructionWrapper
+
 __author__ = 'salvia'
 
 from ..constraints import ConstraintCollection
@@ -19,6 +21,7 @@ class DatamodelMeta(type):
     def __init__(cls, name, bases, dct):
         super(DatamodelMeta, cls).__init__(name, bases, dct)
         vmattrs = {}
+        member_instructions = []
         dct['_id'] = IDVMAttribute()
         for key, atr in dct.items():
             if key == 'id':
@@ -27,7 +30,11 @@ class DatamodelMeta(type):
                 atr.set_name(key)
                 atr.set_model_name(name)
                 vmattrs[key] = atr
+            if isinstance(atr, MemberInstructionWrapper):
+                atr.create(cls)
+                member_instructions.append(atr)
         cls._vmattrs = vmattrs
+        cls._member_instructions = member_instructions
 
 
 class ModelDestroyedError(Exception):
@@ -55,20 +62,25 @@ class VMAttribute(object):
     def set_model_name(self, model_name):
         self.model_name = model_name
 
-    def attr_name(self, instance, id=None):
-        return '%s/OBJ/%i/%s' % (self.model_name, id if id else instance.id, self.name)
+    def attr_name(self, instance=None, id=None):
+        return '%s/O/%i/%s' % (self.model_name, id if id else instance.id, self.name)
 
     def _get_wrapped_value(self, instance):
         attr_name = self.attr_name(instance)
         return instance.vm.heap.get(attr_name)
 
     def _set_wrapped_value(self, instance, value):
+        from dgvm.datamodel import Datamodel
         attr_name = self.attr_name(instance)
+        if isinstance(value, Datamodel):
+            value = value.id
         instance.vm.heap.set(attr_name, value)
 
-    def _destroy(self, instance):
-        attr_name = self.attr_name(instance)
-        return instance.vm.heap.delete(attr_name)
+    def _destroy(self, instance=None, id=None, vm=None):
+        attr_name = self.attr_name(instance=instance, id=id)
+        if instance:
+            vm = instance.vm
+        return vm.heap.delete(attr_name)
 
     def __get__(self, instance, owner):
 

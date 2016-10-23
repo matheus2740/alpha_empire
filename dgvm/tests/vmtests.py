@@ -4,7 +4,8 @@ from dgvm.datamodel.meta import ModelDestroyedError
 from dgvm.constraints import ConstraintViolation
 from dgvm.ipc.client import BaseIPCClient
 from dgvm.builtin_instructions import BeginTransaction, EndTransaction, InstantiateModel
-from dgvm.vm import VM
+from dgvm.ipc.command import IPCServerException
+from dgvm.vm import RemoteVM as VM
 from alpha_empire_test.datamodels import Infantry, Board
 __author__ = 'salvia'
 
@@ -104,17 +105,20 @@ class VMTests(unittest.TestCase):
             assert isinstance(commit[3], EndTransaction)
             # TODO: make a full blown check, just like the call below, but for all attributes in the model
             # assert vm.heap[id(i)] == i
-
-            i.destroy()
+            try:
+                i.destroy()
+            except IPCServerException as e:
+                print e.original_tb
+                raise
 
             vm.commit()
 
             assert len(vm.heap) == 5  # board object still exists, so actual heap utilized is 5
-            assert vm.heap['Board/OBJ/1/_id'] == 1
-            assert vm.heap['Board/OBJ/1/height'] == 20
-            assert vm.heap['Board/OBJ/1/width'] == 20
-            assert vm.heap['Infantry/IDCOUNTER'] == 1
-            assert vm.heap['Board/IDCOUNTER'] == 1
+            assert vm.heap.get('Board/O/1/_id') == 1
+            assert vm.heap.get('Board/O/1/height') == 20
+            assert vm.heap.get('Board/O/1/width') == 20
+            assert vm.heap.get('Infantry/IDCOUNTER') == 1
+            assert vm.heap.get('Board/IDCOUNTER') == 1
 
             try:
                 i.move(2, 2)
@@ -178,8 +182,8 @@ class VMTests(unittest.TestCase):
             try:
                 i.move(21, 21)
                 assert False
-            except ConstraintViolation as e:
-                assert e.message == '<AttributeChangedConstraint: board_bounds on board>'
+            except IPCServerException as e:
+                assert e.original_message == '<AttributeChangedConstraint: board_bounds on board>'
 
             vm.commit()
 
@@ -210,8 +214,8 @@ class VMTests(unittest.TestCase):
             try:
                 i.move(100, 100)
                 assert False
-            except ConstraintViolation as e:
-                assert e.message == '<AttributeChangedConstraint: action_limit on action>'
+            except IPCServerException as e:
+                assert e.original_message == '<AttributeChangedConstraint: action_limit on action>'
 
             vm.commit()
 

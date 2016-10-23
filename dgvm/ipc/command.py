@@ -8,6 +8,11 @@ class Goodbye(Exception):
 
 
 class IPCServerException(Exception):
+
+    def __init__(self, *args, **kwargs):
+        self.original_message = kwargs.pop('original_message', None)
+        self.original_tb = kwargs.pop('original_tb', None)
+        Exception.__init__(self, *args, **kwargs)
     pass
 
 
@@ -21,8 +26,7 @@ def cmd_shutdown(server, info):
 
 
 def cmd_traceback(client, info):
-    print >> sys.stderr, info['traceback']
-    raise IPCServerException('IPC Server threw an exception')
+    raise IPCServerException('IPC Server threw an exception (%s) see self.original_tb for more info.' % (info['message'],), original_message=info['message'], original_tb=info['traceback'])
 
 
 def cmd_raise(client, info):
@@ -77,9 +81,10 @@ class Command(object):
         return Command(Commands.SHUTDOWN, {})
 
     @staticmethod
-    def Traceback(tb):
+    def Traceback(tb, msg):
         return Command(Commands.TRACEBACK, {
-            'traceback': tb
+            'traceback': tb,
+            'message': msg
         })
 
     @staticmethod

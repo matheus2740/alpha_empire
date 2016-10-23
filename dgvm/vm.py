@@ -1,8 +1,12 @@
+import random
 from collections import deque
 import os
 import hashlib
+from functools import partial
+
 from datamodel.meta import DatamodelMeta
 from dgvm.data_structures import Heap
+from dgvm.ipc.client import BaseIPCClient
 from instruction import InvalidInstruction, MemberInstructionWrapper
 from ipc.server import BaseIPCServer
 from builtin_instructions import *
@@ -15,12 +19,6 @@ __author__ = 'salvia'
 
 def file_here(file):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), file)
-
-
-class VMMeta(type):
-
-    def __init__(cls, name, bases, dct):
-        super(VMMeta, cls).__init__(name, bases, dct)
 
 
 class Commit(object):
@@ -56,11 +54,14 @@ class Commit(object):
             self.append(item)
 
     def dumps(self):
-        raise NotImplementedError()
+        return json.dumps([i._mnemonize() for i in self.__diff])
 
     @classmethod
-    def loads(cls):
-        raise NotImplementedError()
+    def loads(cls, vm, dump):
+        dat = json.loads(dump)
+        c = Commit()
+        c.extend([Instruction._load(vm, d) for d in dat])
+        return c
 
     def __len__(self):
         return len(self.__diff)
@@ -83,27 +84,26 @@ class Commit(object):
             s += [str(self.__diff[i])]
         return '<Commit object at %s with instructions: [%s]>' % (id(self), ', '.join(s))
 
+_LIVE_VMS = {}
 
-class VM(BaseIPCServer):
-    __metaclass__ = VMMeta
+
+class LocalVM(object):
 
     def __init__(self, definitions_package):
 
-        BaseIPCServer.__init__(self, start=False)
         self.instructions_pack = __import__(definitions_package + '.instructions')
         self.datamodels_pack = __import__(definitions_package + '.datamodels')
 
-        self.datamodels = {}
+        self.datamodels = []
+        self.datamodels_idx = {}
         self.instructions = {'opcodes': {}, 'mnemonics': {}}
 
-        self.load_datamodels()
         self.load_instructions()
+        self.load_datamodels()
 
         # initialize heap (16k starting size)
         self.heap = Heap(16384)
 
-        # are we currently in a transaction?
-        self.in_transaction = False
         # temporary state of the commit. may be reversed or permanently commited
         self.workspace = None
         # commit history
@@ -119,9 +119,11 @@ class VM(BaseIPCServer):
                 self.validate_model(v)
                 models.append(v)
                 for member_instruction in [inst for (name, inst) in v.__dict__.iteritems() if isinstance(inst, MemberInstructionWrapper)]:
-                    member_instruction.register(self, v)
+                    member_instruction.register(self)
 
         self.datamodels = list(models)
+        self.datamodels_idx = {dm.__name__: dm for dm in models}
+        pass
 
     def validate_model(self, model):
         for m in datamodel.model.required_methods:
@@ -155,6 +157,12 @@ class VM(BaseIPCServer):
 
         self.instructions['opcodes'][instruction.opcode] = instruction
         self.instructions['mnemonics'][instruction.mnemonic] = instruction
+
+    def get_instruction(self, mnemonic=None):
+        return self.instructions['mnemonics'][mnemonic]
+
+    def get_model(self, name):
+        return self.datamodels_idx[name]
 
     def validate_instruction(self, instruction):
 
@@ -201,6 +209,17 @@ class VM(BaseIPCServer):
             instruction(self)
         self.workspace.extend(instructions)
 
+    def execute_from_mnemonic(self, mnemonic_forms):
+
+        self.execute([Instruction.load(self, mnemonic_form) for mnemonic_form in mnemonic_forms])
+
+    def execute_member_instruction(self, mnemonic, model_instance, args, kwargs):
+        i = self.get_instruction(mnemonic=mnemonic)
+        m = self.get_model(model_instance[0])
+        mi = m.get_by_id(self, model_instance[1])
+
+        self.execute([i(mi, *args, **kwargs)])
+
     def commit(self):
         if self.workspace:
             self.workspace.calc_hash()
@@ -214,9 +233,97 @@ class VM(BaseIPCServer):
     def get_last_commit(self):
         return self.commits[-1]
 
+    def get_last_commit_dump(self):
+        return self.get_last_commit().dumps()
+
     def get_current_commit(self):
         return self.workspace
 
+    def get_current_commit_dump(self):
+        return self.get_current_commit().dumps()
+
+    def heap_size(self):
+        return len(self.heap)
+
+
+class RemoteHeap(object):
+
+    def __init__(self, rvm):
+
+        self.rvm = rvm
+
+    def __getattr__(self, item):
+        client_idx = random.randint(0, self.rvm.nclients - 1)
+        return partial(self.rvm.clients[client_idx].vm_call_on_heap, self.rvm.definitions_package, item)
+
+    def __len__(self):
+        return self.rvm.heap_size()
+
+
+class RemoteVM(object):
+
+    def __init__(self, definitions_package):
+
+        def make_vm(definitions_package):
+
+            _LIVE_VMS[definitions_package] = LocalVM(definitions_package)
+
+        def vm_call(definitions_package, fn, *args, **kwargs):
+
+            return getattr(_LIVE_VMS[definitions_package], fn)(*args, **kwargs)
+
+        def vm_call_on_heap(definitions_package, fn, *args, **kwargs):
+
+            return getattr(_LIVE_VMS[definitions_package].heap, fn)(*args, **kwargs)
+
+        self.definitions_package = definitions_package
+        self.server = BaseIPCServer()
+        self.server.register_functor(make_vm, 'make_vm')
+        self.server.register_functor(vm_call, 'vm_call')
+        self.server.register_functor(vm_call_on_heap, 'vm_call_on_heap')
+        self.clients = []
+        self.started = False
+        self.nclients = 5
+        self.heap = RemoteHeap(self)
+        self._local_vm = LocalVM(definitions_package)
+
+    def get_last_commit(self):
+
+        dump = self.clients[0].vm_call(self.definitions_package, 'get_last_commit_dump')
+
+        return Commit.loads(self._local_vm, dump)
+
+    def get_current_commit(self):
+
+        dump = self.clients[0].vm_call(self.definitions_package, 'get_current_commit_dump')
+
+        return Commit.loads(self._local_vm, dump)
+
+    def execute(self, instrs):
+
+        self.execute_from_mnemonic([instr.mnemonize() for instr in instrs])
+
+    def startup(self):
+        self.server.startup()
+        self.clients = [BaseIPCClient() for _ in range(self.nclients)]
+        self.clients[0].make_vm(self.definitions_package)
+        self.started = False
+
+    def shutdown(self):
+        for client in self.clients:
+            client.disconnect()
+        self.server.shutdown()
+
+    def __enter__(self):
+        self.startup()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.shutdown()
+
+    def __getattr__(self, item):
+        client_idx = random.randint(0, self.nclients - 1)
+        return partial(self.clients[client_idx].vm_call, self.definitions_package, item)
 
 #TODO: implement commit log/history
 #TODO: implement serialization of heap and commit logs
