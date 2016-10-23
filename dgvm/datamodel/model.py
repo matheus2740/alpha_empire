@@ -155,11 +155,6 @@ class Datamodel(object):
         item = cls(vm, noinit=True)
         item._state = DatamodelStates.ENGINE_CHANGING
         item.id = id
-        for k, v in item._vmattrs.iteritems():
-            if k == 'id':
-                pass
-            setattr(item, k, vm.heap.get(v.attr_name(id=id)))
-
         item._state = DatamodelStates.NORMAL
         return item
 

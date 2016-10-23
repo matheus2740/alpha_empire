@@ -299,6 +299,50 @@ class VMTests(unittest.TestCase):
             except ValueError as e:
                 assert e.message == 'Cannot instantiate Infantry: value for health is required.'
 
+    def test_attack(self):
+
+        with VM('alpha_empire_test') as vm:
+            i1 = Infantry(
+                vm,
+                n_units=1,
+                attack_dmg=1,
+                armor=0,
+                health=1,
+                action=10,
+                board=Board(vm, width=20, height=20)
+            )
+            i2 = Infantry(
+                vm,
+                n_units=1,
+                attack_dmg=1,
+                armor=0,
+                health=10,
+                action=10,
+                board=Board(vm, width=20, height=20)
+            )
+
+            vm.commit()
+
+            try:
+                i1.attack(i2)
+            except IPCServerException as e:
+                print e.original_tb
+                raise
+
+            vm.commit()
+
+            assert i2.health == 9
+
+            try:
+                i1.move(2,2)
+                assert False
+            except IPCServerException as e:
+                assert e.original_message == '<AttributeChangedConstraint: action_limit on action>'
+                vm.rollback()
+
+            assert i2.health == 9
+
+
 if __name__ == '__main__':
     unittest.main()
 

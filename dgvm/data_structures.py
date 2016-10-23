@@ -175,6 +175,7 @@ class _Heap_DeletedObj(object):
         return 'Heap_DeletedObj'
 
 Heap_DeletedObj = _Heap_DeletedObj()
+Heap_Nothing = _Heap_DeletedObj()
 
 
 class Heap(object):
@@ -233,10 +234,10 @@ class Heap(object):
     def __getitem__(self, item):
         with self.__lock:
             for treect in reversed(self.__data):
-                v = treect.get(item)
+                v = treect.get(item, Heap_Nothing)
                 if v is Heap_DeletedObj:
                     raise KeyError
-                if v:
+                if v is not Heap_Nothing:
                     return v
 
         raise KeyError()

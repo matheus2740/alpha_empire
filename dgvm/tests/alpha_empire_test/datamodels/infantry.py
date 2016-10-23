@@ -22,14 +22,22 @@ class Infantry(Datamodel):
     position = Pair(int, null=False, default=(0, 0))
     board = ForeignModel(Board, null=False)
 
-    @instruction(opcode=101, mnemonic='MOVE', args=(Datamodel, int, int), onself=True)
-    def move(inst, infantry, x, y):
-        dx = (x - infantry.position.x) ** 2
-        dy = (y - infantry.position.y) ** 2
+    @instruction(opcode=101, mnemonic='MOVE', args=(Datamodel, int, int))
+    def move(self, x, y):
+        dx = (x - self.position.x) ** 2
+        dy = (y - self.position.y) ** 2
         d = dx + dy
         root = math.sqrt(d)
-        infantry.action -= math.ceil(root)
-        infantry.position = (x, y)
+        self.action -= math.ceil(root)
+        self.position = (x, y)
+
+    @instruction(opcode=102, mnemonic='ATTK', args=(Datamodel, Datamodel))
+    def attack(self, other):
+
+        self.action -= 10
+        val = other.health - (self.attack_dmg - other.armor)
+        other.health = val
+
 
     @constraint.on_change(action)
     def action_limit(cons, old, new, related):

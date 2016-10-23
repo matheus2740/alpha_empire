@@ -227,7 +227,8 @@ class LocalVM(object):
             self.end_transaction()
 
     def rollback(self):
-        self.workspace = self.commits.pop()
+        if self.workspace:
+            self.workspace = self.commits.pop()
         self.heap.revert()
 
     def get_last_commit(self):

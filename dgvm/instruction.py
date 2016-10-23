@@ -120,7 +120,7 @@ class Instruction(object):
         cls = vm.instructions['mnemonics'][parts[0]]
 
         if len(parts) != cls.n_args + 1:
-            raise InvalidInstruction('Cannot load mnemonic form: %s' % (mnenomic_form, ))
+            raise InvalidInstruction('Cannot load mnemonic form: %s' % (parts, ))
 
         def deserialize(a):
             if isinstance(a, list) and len(a) == 2 and a[0] == 'DatamodelMeta':
@@ -149,11 +149,20 @@ class Instruction(object):
 class MemberInstruction(Instruction):
 
     owner = None
-    onself = False
     instances = {}
 
     def __init__(self, *args):
         super(MemberInstruction, self).__init__(*args)
+
+    def __call__(self, vm):
+        map(lambda model: model._to_user_changing_state(), self.model_args)
+        try:
+            self.execute(*self.args)
+        except Exception as e:
+            raise e
+        finally:
+            map(lambda model: model._to_normal_state(), self.model_args)
+
 
     @classmethod
     def get_name(cls):
@@ -179,8 +188,8 @@ class MemberInstructionView(object):
 
     def __call__(self, *args, **kwargs):
         model_instance = self.__dict__['instance']
-        mnemonic = self.__dict__['wrapper'].mnemonic
-        model_instance.vm.execute_member_instruction(mnemonic=mnemonic, model_instance=(model_instance.__class__.__name__, model_instance.id), args=args, kwargs=kwargs)
+        mnemonic_form = self.__dict__['wrapper'].i(model_instance, *args, **kwargs).mnemonize()
+        model_instance.vm.execute_from_mnemonic([mnemonic_form])
         return None
 
 
@@ -189,7 +198,7 @@ class MemberInstructionWrapper(object):
         Wrapper that sits inside a Datamodel when the instruction decorator is used.
     """
 
-    def __init__(self, func, opcode, mnemonic, args, onself):
+    def __init__(self, func, opcode, mnemonic, args):
 
         # name of the attribute inside the Datamodel
         self.attr_name = ""
@@ -208,9 +217,6 @@ class MemberInstructionWrapper(object):
 
         # list of argument types received by the instruction
         self.args = args
-
-        # flag indicating wheter the instruction operates on the datamodel which defined it
-        self.onself = onself
 
         # The actual instruction object. inherits from `MemberInstruction` and has a metaclass of `InstructionMeta`
         self.i = None
@@ -242,7 +248,6 @@ class MemberInstructionWrapper(object):
             'n_args': len(self.args),
             'arg_types': self.args,
             'owner': owner,
-            'onself': self.onself,
         })
         self.i.execute = staticmethod(self.func)
 
@@ -255,11 +260,11 @@ class instruction(object):
         Decorator for inline instructions. Returns a MemberInstructionWrapper.
     """
 
-    def __init__(self, opcode, mnemonic, args, onself=True):
+    def __init__(self, opcode, mnemonic, args):
         self.opcode = opcode
         self.mnemonic = mnemonic
         self.args = args
-        self.onself = onself
 
     def __call__(self, func):
-        return MemberInstructionWrapper(func, self.opcode, self.mnemonic, self.args, self.onself)
+        return MemberInstructionWrapper(func, self.opcode, self.mnemonic, self.args)
+
