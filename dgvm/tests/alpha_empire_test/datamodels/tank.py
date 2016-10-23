@@ -8,12 +8,11 @@ from dgvm.instruction import instruction
 import math
 
 
-class Infantry(Datamodel):
+class Tank(Datamodel):
     """
-    Preliminary infantry datamodel,
+    Preliminary tank datamodel,
     used to test DGVM
     """
-    n_units = Integer(null=False)
     attack_dmg = Integer(null=False)
     armor = Integer(null=False)
     health = Integer(null=False)
@@ -22,14 +21,8 @@ class Infantry(Datamodel):
     position = Pair(int, null=False, default=(0, 0))
     board = ForeignModel(Board, null=False)
 
-    @property
-    def alive(self):
-        return self.health > 0
-
-    @instruction(opcode=101, mnemonic='INF.MOVE', args=(Datamodel, int, int))
+    @instruction(opcode=201, mnemonic='TANK.MOVE', args=(Datamodel, int, int))
     def move(self, x, y):
-        if not self.alive:
-            raise ValueError('Cannot move dead infantry')
         dx = (x - self.position.x) ** 2
         dy = (y - self.position.y) ** 2
         d = dx + dy
@@ -37,13 +30,12 @@ class Infantry(Datamodel):
         self.action -= math.ceil(root)
         self.position = (x, y)
 
-    @instruction(opcode=102, mnemonic='INF.ATTK', args=(Datamodel, Datamodel))
+    @instruction(opcode=202, mnemonic='TANK.ATTK', args=(Datamodel, Datamodel))
     def attack(self, other):
 
         self.action -= 10
         val = other.health - (self.attack_dmg - other.armor)
         other.health = val
-
 
     @constraint.on_change(action)
     def action_limit(cons, old, new, related):

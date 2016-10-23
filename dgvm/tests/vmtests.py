@@ -5,6 +5,7 @@ from dgvm.constraints import ConstraintViolation
 from dgvm.ipc.client import BaseIPCClient
 from dgvm.builtin_instructions import BeginTransaction, EndTransaction, InstantiateModel
 from dgvm.ipc.command import IPCServerException
+from dgvm.tests.alpha_empire_test.datamodels.tank import Tank
 from dgvm.vm import RemoteVM as VM
 from alpha_empire_test.datamodels import Infantry, Board
 __author__ = 'salvia'
@@ -341,6 +342,54 @@ class VMTests(unittest.TestCase):
                 vm.rollback()
 
             assert i2.health == 9
+
+    def test_attack_tank(self):
+
+        with VM('alpha_empire_test') as vm:
+
+            b = Board(vm, width=20, height=20)
+            i1 = Infantry(
+                vm,
+                n_units=1,
+                attack_dmg=1,
+                armor=0,
+                health=10,
+                action=10,
+                board=b
+            )
+            try:
+                t1 = Tank(
+                    vm,
+                    attack_dmg=10,
+                    armor=0,
+                    health=100,
+                    action=10,
+                    board=b
+                )
+            except IPCServerException as e:
+                print e.original_tb
+                raise
+
+            vm.commit()
+
+            try:
+                t1.attack(i1)
+            except IPCServerException as e:
+                print e.original_tb
+                raise
+
+            vm.commit()
+
+            assert i1.health == 0
+
+            try:
+                i1.move(2,2)
+                assert False
+            except IPCServerException as e:
+                assert e.original_message == 'Cannot move dead infantry'
+                vm.rollback()
+
+            assert i1.health == 0
 
 
 if __name__ == '__main__':
