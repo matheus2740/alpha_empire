@@ -49,7 +49,7 @@ class TCPIPCServer(object):
     def __init__(self, ipc_server):
         self.shutdown_queue = ipc_server.shutdown_queue
         self.ipc_server = ipc_server
-        self.timeout = 0.001
+        self.timeout = 1
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind(ipc_server.address)
@@ -88,7 +88,7 @@ class TCPIPCServer(object):
         while True:
 
             try:
-                sd = self.shutdown_queue.get(True, 1)
+                sd = self.shutdown_queue.get(True, .001)
                 if sd == 'SHUTDOWN':
                     break
             except Empty:
@@ -251,6 +251,7 @@ class BaseIPCServer(object):
         # sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # retry_on_refuse(sock.connect, 10, self.address)
         self.shutdown_queue.put('SHUTDOWN')
+        BaseIPCServer._processes[self.process.pid].join()
 
     def __enter__(self):
         self.startup()

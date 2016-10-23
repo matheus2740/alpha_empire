@@ -8,7 +8,7 @@ from dgvm.ipc.server import BaseIPCServer
 
 class IPCTests(unittest.TestCase):
 
-    def test_ipc(self):
+    def atest_ipc(self):
         # simple square function
         def square(x):
             return x ** 2
@@ -33,9 +33,9 @@ class IPCTests(unittest.TestCase):
 
         pass
 
-    def atest_performance(self):
+    def test_performance(self):
         # simple square function
-        def square(x):
+        def echo(x):
             return x ** 2
 
         def pid():
@@ -43,15 +43,13 @@ class IPCTests(unittest.TestCase):
             os.getpid()
 
         sv = BaseIPCServer()
-        sv.register_functor(square, 'square')
-
-        sv.register_functor(pid, 'pid')
+        sv.register_functor(echo, 'echo')
 
         with sv:
 
             la = time.time()
             for i in range(1000):
-                square(i)
+                echo(i)
             lb = time.time()
             print 'Local took:', lb - la
 
@@ -59,7 +57,7 @@ class IPCTests(unittest.TestCase):
 
             ra = time.time()
             for i in range(1000):
-                client.square(i)
+                client.echo(i)
             rb = time.time()
             print 'remote took:', rb - ra
 
