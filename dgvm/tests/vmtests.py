@@ -11,24 +11,6 @@ __author__ = 'salvia'
 
 class VMTests(unittest.TestCase):
 
-    def test_ipc(self):
-        # simple square function
-        VM.square = staticmethod(lambda x: x ** 2)
-        VM.register_functor(VM.square, 'square')
-
-        # getpid function, we must make sure the VM is in another process
-        VM.pid = staticmethod(lambda: os.getpid())
-        VM.register_functor(VM.pid, 'pid')
-
-        with VM('alpha_empire_test') as vm:
-            client = BaseIPCClient()
-            assert client.square(2) == 4
-            assert client.square(3) == 9
-            assert client.square(4) == 16
-
-            client.disconnect()
-            pass
-
     def test_commit(self):
 
         with VM('alpha_empire_test') as vm:

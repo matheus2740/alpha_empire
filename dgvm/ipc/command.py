@@ -26,22 +26,32 @@ def cmd_traceback(client, info):
 
 
 def cmd_raise(client, info):
-    raise IPCServerException('IPC Server returned an exception: ' + info['exc'])
+    raise IPCServerException('IPC Server returned an exception: %s, with data: %s' % (info['exc'], info['data']))
 
 
 def do_nothing(*args, **kwargs):
     pass
 
 
+def fn_call(server, info):
+    return server.fn_call(info[0], info[1], info[2])
+
+
+def return_arg(client, arg):
+    return arg
+
+
 class Commands(object):
     """
         command = (id, client execution, server execution, execute function)
     """
-    GOODBYE      = (1, False, True, cmd_goodbye)
-    SHUTDOWN     = (2, False, True, cmd_shutdown)
-    TRACEBACK    = (3, True, False, cmd_traceback)
-    RAISE        = (4, True, False, cmd_raise)
-    ACK          = (5, True, True, do_nothing)
+    GOODBYE      = (1, False, True,  cmd_goodbye)
+    SHUTDOWN     = (2, False, True,  cmd_shutdown)
+    TRACEBACK    = (3, True,  False, cmd_traceback)
+    RAISE        = (4, True,  False, cmd_raise)
+    ACK          = (5, True,  True,  do_nothing)
+    FN_CALL      = (6, False, True,  fn_call)
+    FN_CALL_RES  = (7, True,  False, return_arg)
 
 
 class Command(object):
@@ -52,11 +62,11 @@ class Command(object):
 
     def execute_as_server(self, server):
         if self.command[2]:
-            self.command[3](server, self.info)
+            return self.command[3](server, self.info)
 
     def execute_as_client(self, client):
         if self.command[1]:
-            self.command[3](client, self.info)
+            return self.command[3](client, self.info)
 
     @staticmethod
     def Goodbye():
@@ -82,3 +92,11 @@ class Command(object):
     @staticmethod
     def Ack(message=''):
         return Command(Commands.ACK, {'message': message})
+
+    @staticmethod
+    def FunctionCall(name, args, kwargs):
+        return Command(Commands.FN_CALL, (name, args, kwargs))
+
+    @staticmethod
+    def FunctionCallResponse(result):
+        return Command(Commands.FN_CALL_RES, result)

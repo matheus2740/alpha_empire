@@ -2,7 +2,7 @@ import socket
 import time
 import sys
 import os
-from command import Command
+from command import Command, Commands
 from protocol import BaseIPCProtocol
 
 __author__ = 'salvia'
@@ -55,23 +55,11 @@ class Caller(object):
         self.function = function
 
     def __call__(self, *args, **kwargs):
-        data = {
-            'f': self.function,
-            'a': args,
-            'kw': kwargs
-        }
 
-        # sockf = sock.makefile()
-        self.client.protocol.send_message(self.client.sock, data)
+        self.client.protocol.send_message(self.client.sock, Command.FunctionCall(self.function, args, kwargs))
         result = self.client.protocol.recover_message(self.client.sock)
-        # sock.shutdown(socket.SHUT_RDWR)
 
-        return self.parse(result)
-
-    def parse(self, result):
-        if isinstance(result, Command):
-            return result.execute_as_client(self)
-        return result
+        return result.execute_as_client(self)
 
 
 class BaseIPCClient(object):
@@ -105,13 +93,12 @@ class BaseIPCClient(object):
         :return:
         """
         self.connected = False
-        try:
-            self.protocol.send_message(self.sock, Command.Goodbye())
-            data = self.protocol.recover_message(self.sock)
-        except:
-            pass
+        self.protocol.send_message(self.sock, Command.Goodbye())
+        data = self.protocol.recover_message(self.sock)
         self.sock.close()
         self.sock = None
+        if not isinstance(data, Command) or data.command != Commands.ACK:
+            raise ValueError('Server did not understood disconnection. you may be in an awry state.')
 
     def shutdown(self):
         """

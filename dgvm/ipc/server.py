@@ -1,8 +1,10 @@
+from Queue import Empty
 from SocketServer import TCPServer, StreamRequestHandler, ThreadingMixIn
 from _socket import SHUT_RDWR
 import socket
+from functools import partial
 from socket import error
-from multiprocessing import Process, Value
+from multiprocessing import Process, Value, Queue
 import sys
 import select
 import errno
@@ -10,8 +12,10 @@ from threading import Thread
 import threading
 import traceback
 import os
+
+from dgvm.ipc.client import retry_on_refuse
 from protocol import BaseIPCProtocol
-from command import Command, Goodbye
+from command import Command, Goodbye, Commands
 import time
 
 __author__ = 'salvia'
@@ -43,9 +47,9 @@ class TCPIPCServer(object):
     allow_reuse_address = True
 
     def __init__(self, ipc_server):
-        self.shuttingdown = Value('i', 0)
+        self.shutdown_queue = ipc_server.shutdown_queue
         self.ipc_server = ipc_server
-        self.timeout = 1
+        self.timeout = 0.001
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind(ipc_server.address)
@@ -61,15 +65,13 @@ class TCPIPCServer(object):
         """
         Shuts down the server from the server process itself.
         """
-        with self.shuttingdown.get_lock():
-            self.shuttingdown.value = 1
+        self.shutdown_queue.put('SHUTDOWN')
 
     def shutdown(self):
         """
         Shuts down the server.
         """
-        with self.shuttingdown.get_lock():
-            self.shuttingdown.value = 1
+        self.shutdown_queue.put('SHUTDOWN')
 
         try:
             self.socket.shutdown(SHUT_RDWR)
@@ -82,10 +84,21 @@ class TCPIPCServer(object):
             pass
 
     def serve_forever_(self):
-        while self.shuttingdown.value == 0:
+
+        while True:
+
+            try:
+                sd = self.shutdown_queue.get(True, 1)
+                if sd == 'SHUTDOWN':
+                    break
+            except Empty:
+                pass
+
             fd_sets = _eintr_retry(select.select, [self.socket], [], [], self.timeout)
             if not fd_sets[0]:
                 continue
+                # nothing to read, try again
+
             try:
                 request_socket, client_address = self.socket.accept()
             except socket.error:
@@ -106,6 +119,7 @@ class TCPIPCServer(object):
 
     def handle(self, request_socket):
         sv = self.ipc_server
+        send = partial(sv.protocol.send_message, request_socket)
         while True:
             data = sv.protocol.recover_message(request_socket)
 
@@ -114,31 +128,40 @@ class TCPIPCServer(object):
 
             if isinstance(data, Command):
                 try:
-                    data.execute_as_server(self)
+                    result = data.execute_as_server(self)
+
+                    if isinstance(result, Command):
+                        send(result)
+
+                    if data.command == Commands.FN_CALL and not isinstance(result, Command):
+                        send(Command.Raise('Awry Function Call', data.info))
+
+
                 except Goodbye:
-                    sv.protocol.send_message(request_socket, Command.Ack(self.pid))
+                    send(Command.Ack(self.pid))
                     break
             else:
+                print 'Server received unknown object: %s' % (data,)
 
-                fname = data['f']
-                args = data['a']
-                kwargs = data['kw']
-
-                if fname in sv._quiver:
-                    try:
-                        # good path. Funtion exists and returns an object.
-                        result = sv._quiver[fname](*args, **kwargs)
-                    except:
-                        # function execution throws exception
-                        result = Command.Traceback(traceback.format_exc())
-                else:
-                    # no such funtion
-                    result = Command.Raise('no_such_function', data)
-
-                sv.protocol.send_message(request_socket, result)
         # close connection and remove socket from handlers
         request_socket.close()
         self.handler_sockets[id(request_socket)] = request_socket
+
+    def fn_call(self, fname, args, kwargs):
+        sv = self.ipc_server
+
+        if fname in sv._quiver:
+            try:
+                # good path. Funtion exists and returns an object.
+                result = sv._quiver[fname](*args, **kwargs)
+            except:
+                # function execution throws exception
+                result = Command.Traceback(traceback.format_exc())
+        else:
+            # no such funtion
+            result = Command.Raise('No Such Function', fname)
+
+        return Command.FunctionCallResponse(result)
 
 
 class BaseIPCServer(object):
@@ -160,7 +183,7 @@ class BaseIPCServer(object):
     _quiver = {}
     _processes = {}
 
-    def __init__(self, address=('127.0.0.1', 8998), start=True):
+    def __init__(self, address=('127.0.0.1', 8998)):
         """
         Initializes the server.
         :param address: (str) The unix socket file path
@@ -171,8 +194,7 @@ class BaseIPCServer(object):
         self._started = False
         self.tcp_server = None
         self.ignited = Value('i', 0)
-        if start:
-            self.startup()
+        self.shutdown_queue = Queue()
 
     @classmethod
     def register_functor(cls, functor, name=None):
@@ -222,9 +244,13 @@ class BaseIPCServer(object):
             self.tcp_server.serve_forever_()
 
     def shutdown(self):
-        from client import BaseIPCClient
-        c = BaseIPCClient(address=self.address)
-        c.shutdown()
+        # from client import BaseIPCClient
+        # c = BaseIPCClient(address=self.address)
+        # c.shutdown()
+        # sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # retry_on_refuse(sock.connect, 10, self.address)
+        self.shutdown_queue.put('SHUTDOWN')
 
     def __enter__(self):
         self.startup()
