@@ -1,3 +1,6 @@
+import threading
+from collections import deque
+
 
 class Treect(object):
 
@@ -166,40 +169,92 @@ class Treect(object):
         return repr(self.__d)
 
 
-# TODO: make Heap historical and collapseable,
-# TODO: i.e. each commit is a new treect which fallsback to the last commit's treect on key not found.
+class _Heap_DeletedObj(object):
+
+    def __str__(self):
+        return 'Heap_DeletedObj'
+
+Heap_DeletedObj = _Heap_DeletedObj()
+
+
 class Heap(object):
 
     def __init__(self, size):
         super(Heap, self).__init__()
         self.size = size
-        self.__data = Treect()
+        self.__data = deque([Treect()])
+        self.__lock = threading.RLock()
+        self.__count = 0
 
     def set(self, address, obj):
-        if not isinstance(address, (int, str, unicode)):
-            raise ValueError('Heap address must be of type int or string, not ' + type(address).__name__)
-        self.__data[address] = obj
+        self[address] = obj
 
     def get(self, item, default=None):
-        return self.__data.get(item, default)
+        try:
+            return self[item]
+        except KeyError:
+            return default
 
     def delete(self, item):
-        del self.__data[item]
+        del self[item]
 
     def percent_used(self):
-        return float(len(self.__data)) / float(self.size) * 100
+        return float(len(self)) / float(self.size) * 100
+
+    def checkpoint(self):
+        self.__data.append(Treect())
+
+    def revert(self):
+        if len(self.__data) == 1:
+            raise ValueError('Cannot revert Heap, no checkpoints found!')
+        self.__data.pop()
+
+    def collapse(self):
+        self.__data = deque([self.make_collapsed()])
+
+    def make_collapsed(self, keep_deleted=False):
+
+        t = Treect()
+        for container in self.__data:
+            for k, v in container.all_items():
+                t[k] = v
+
+        if not keep_deleted:
+            for k, v in t.all_items():
+                if v is Heap_DeletedObj:
+                    del t[k]
+        return t
+
+    def describe(self):
+
+        for k, v in self.make_collapsed().all_items():
+            print '%s%s%s' % (k, ((80 - len(k)) * ' '), v)
 
     def __len__(self):
-        return len([None for _ in self.__data.all_items()])
+        return self.__count
 
     def __getitem__(self, item):
-        return self.__data[item]
+        with self.__lock:
+            for treect in reversed(self.__data):
+                v = treect.get(item)
+                if v is Heap_DeletedObj:
+                    raise KeyError
+                if v:
+                    return v
+
+        raise KeyError()
 
     def __setitem__(self, key, value):
-        self.__data[key] = value
+        if not isinstance(key, (int, str, unicode)):
+            raise ValueError('Heap address must be of type int or string, not ' + type(key).__name__)
+        with self.__lock:
+            self.__count += 1
+            self.__data[-1][key] = value
 
     def __delitem__(self, key):
-        del self.__data[key]
+        with self.__lock:
+            self.__count -= 1
+            self.__data[-1][key] = Heap_DeletedObj
 
     def __repr__(self):
         return str(self)

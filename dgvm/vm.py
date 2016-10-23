@@ -182,6 +182,7 @@ class VM(BaseIPCServer):
             raise Exception('Cannot begin transaction with an uncomitted transaction (dirty workspace).')
         self.workspace = Commit()
         self.workspace.append(BeginTransaction())
+        self.heap.checkpoint()
 
     def end_transaction(self):
         """
@@ -207,11 +208,14 @@ class VM(BaseIPCServer):
             self.end_transaction()
 
     def rollback(self):
-        # TODO: implement rollback
-        pass
+        self.workspace = self.commits.pop()
+        self.heap.revert()
 
     def get_last_commit(self):
         return self.commits[-1]
+
+    def get_current_commit(self):
+        return self.workspace
 
 
 #TODO: implement commit log/history

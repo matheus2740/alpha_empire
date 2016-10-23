@@ -85,7 +85,7 @@ class VMTests(unittest.TestCase):
 
             vm.rollback()
 
-            commit = vm.get_last_commit()
+            commit = vm.get_current_commit()
 
             assert i.position == (1, 1)
             assert hash(commit) is not None

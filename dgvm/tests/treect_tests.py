@@ -3,7 +3,7 @@ import unittest
 from dgvm.data_structures import Treect
 
 
-class VMTests(unittest.TestCase):
+class TreectTests(unittest.TestCase):
 
     def test_base_keys(self):
 
