@@ -29,6 +29,19 @@ class HexNode(object):
 
         self.node = node
 
+    def animatez(self, z):
+        pos = self.getPos()
+        pos.z = z
+        interval = self.node.posInterval(.5, pos, blendType='easeInOut')
+        interval.start()
+        pass
+
+    def select(self):
+        self.animatez(10)
+
+    def deselect(self):
+        self.animatez(0)
+
     def __getattr__(self, item):
         return getattr(self.node, item)
 
