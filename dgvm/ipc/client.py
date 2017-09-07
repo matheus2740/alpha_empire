@@ -2,8 +2,8 @@ import socket
 import time
 import sys
 import os
-from command import Command, Commands
-from protocol import BaseIPCProtocol
+from .command import Command, Commands
+from .protocol import BaseIPCProtocol
 
 __author__ = 'salvia'
 

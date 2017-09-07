@@ -2,8 +2,8 @@ __author__ = 'salvia'
 
 import functools
 
-from meta import VMAttribute, TypedVMAttribute
-from ..utils import to_str, to_unicode, iterable
+from .meta import VMAttribute, TypedVMAttribute
+from ..utils import to_bytes, to_unicode, iterable
 
 
 def listof(type):
@@ -95,14 +95,10 @@ class ntuple(object):
 
     def __str__(self):
 
-        return '(' + ', '.join([to_str(item) for item in self]) + ')'
-
-    def __unicode__(self):
-
-        return u'(' + u', '.join([to_unicode(item) for item in self]) + u')'
+        return '(' + ', '.join([to_unicode(item) for item in self]) + ')'
 
     def __repr__(self):
-        return unicode(self)
+        return str(self)
 
 
 class Integer(VMAttribute):

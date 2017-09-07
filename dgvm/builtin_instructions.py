@@ -1,6 +1,6 @@
 import json
 
-from instruction import Instruction, InvalidInstruction
+from .instruction import Instruction, InvalidInstruction
 
 __author__ = 'salvia'
 

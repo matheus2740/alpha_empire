@@ -2,7 +2,7 @@ __author__ = 'salvia'
 
 from threading import Lock
 
-from meta import DatamodelMeta, DatamodelStates
+from .meta import DatamodelMeta, DatamodelStates
 from ..builtin_instructions import InstantiateModel, DestroyInstance
 
 
@@ -14,12 +14,11 @@ class InvalidModel(Exception):
 
 
 # TODO: implement .objects(.all/.filter)
-class Datamodel(object):
+class Datamodel(metaclass=DatamodelMeta):
     """
         Base class for all models.
 
     """
-    __metaclass__ = DatamodelMeta
 
     _state = DatamodelStates.NORMAL
 
@@ -45,7 +44,7 @@ class Datamodel(object):
         self.id = id
 
         # for each attribute of this model
-        for k, v in self._vmattrs.iteritems():
+        for k, v in self._vmattrs.items():
 
             # id is a special snowflake and need separate attention. which he got. above.
             if k == '_id':

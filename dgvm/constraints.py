@@ -8,7 +8,7 @@ class ConstraintViolation(Exception):
 class Constraint(object):
 
     def __init__(self, name, func, target, related):
-        from datamodel.meta import VMAttribute
+        from .datamodel.meta import VMAttribute
         related = related or tuple()
         if not isinstance(target, VMAttribute):
             raise Exception('Target for constraint must be of type VMAttribute, not ' + str(type(target)))

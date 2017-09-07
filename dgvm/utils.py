@@ -38,9 +38,6 @@ class Proxy(object):
     def __str__(self):
         return str(self.__dict__["_obj"])
 
-    def __unicode__(self):
-        return unicode(self.__dict__["_obj"])
-
     def __repr__(self):
         return repr(self.__dict__["_obj"])
 
@@ -139,15 +136,15 @@ def iterable(a):
         return False
 
 
-def to_str(x):
-    if isinstance(x, unicode):
+def to_bytes(x):
+    if isinstance(x, str):
         return x.encode('utf-8')
-    return str(x)
+    return bytes(x)
 
 
 def to_unicode(x):
-    if isinstance(x, str):
+    if isinstance(x, bytes):
         return x.decode('utf-8')
-    return unicode(x)
+    return str(x)
 
 

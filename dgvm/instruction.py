@@ -49,14 +49,12 @@ class InstructionMeta(type):
                 raise_invalid(cls, 'arg_types')
 
 
-class Instruction(object):
+class Instruction(metaclass=InstructionMeta):
     """
         Base class for all VM instructions. Defines some initilization checks and execution checks.
         It is important to note that Intructions are effectively run upon instantion, i.e. every Instruction instance
         represents some operation that was done inside that. These generally only reside in the commit logs.
     """
-
-    __metaclass__ = InstructionMeta
 
     # code of instruction
     opcode = None
@@ -68,7 +66,7 @@ class Instruction(object):
     arg_types = None
 
     def __init__(self, *args):
-        from datamodel import Datamodel
+        from .datamodel import Datamodel
 
         if len(self.arg_types) != self.n_args:
             raise InvalidInstruction('Instruction %s has mismatching .n_args and .arg_types' % (type(self).__name__, ))
@@ -155,13 +153,13 @@ class MemberInstruction(Instruction):
         super(MemberInstruction, self).__init__(*args)
 
     def __call__(self, vm):
-        map(lambda model: model._to_user_changing_state(), self.model_args)
+        list(map(lambda model: model._to_user_changing_state(), self.model_args))
         try:
             self.execute(*self.args)
         except Exception as e:
             raise e
         finally:
-            map(lambda model: model._to_normal_state(), self.model_args)
+            list(map(lambda model: model._to_normal_state(), self.model_args))
 
 
     @classmethod

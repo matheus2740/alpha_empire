@@ -3,7 +3,7 @@ __author__ = 'salvia'
 from dgvm.datamodel import Datamodel
 from dgvm.datamodel import Integer, Pair, ForeignModel, String
 from dgvm.constraints import constraint
-from board import Board
+from .board import Board
 from dgvm.instruction import instruction
 import math
 

@@ -4,15 +4,15 @@ import os
 import hashlib
 from functools import partial
 
-from datamodel.meta import DatamodelMeta
+from .datamodel.meta import DatamodelMeta
 from dgvm.data_structures import Heap
 from dgvm.ipc.client import BaseIPCClient
-from instruction import InvalidInstruction, MemberInstructionWrapper
-from ipc.server import BaseIPCServer
-from builtin_instructions import *
-from datamodel import InvalidModel, Datamodel
-from utils import iterable
-import datamodel
+from .instruction import InvalidInstruction, MemberInstructionWrapper
+from .ipc.server import BaseIPCServer
+from .builtin_instructions import *
+from .datamodel import InvalidModel, Datamodel
+from .utils import iterable
+import dgvm.datamodel
 
 __author__ = 'salvia'
 
@@ -35,6 +35,7 @@ class Commit(object):
                 pre_str.append(instruction.mnemonize())
 
             pre_str = '\n'.join(pre_str)
+            pre_str = pre_str.encode('utf-8')
             self.__hash = int(hashlib.sha256(pre_str).hexdigest(), 16)
             self.__has_valid_hash = True
         return self.__hash
@@ -114,11 +115,11 @@ class LocalVM(object):
 
     def load_datamodels(self):
         models = deque()
-        for k, v in self.datamodels_pack.datamodels.__dict__.iteritems():
+        for k, v in self.datamodels_pack.datamodels.__dict__.items():
             if isinstance(v, DatamodelMeta):
                 self.validate_model(v)
                 models.append(v)
-                for member_instruction in [inst for (name, inst) in v.__dict__.iteritems() if isinstance(inst, MemberInstructionWrapper)]:
+                for member_instruction in [inst for (name, inst) in v.__dict__.items() if isinstance(inst, MemberInstructionWrapper)]:
                     member_instruction.register(self)
 
         self.datamodels = list(models)
@@ -126,7 +127,7 @@ class LocalVM(object):
         pass
 
     def validate_model(self, model):
-        for m in datamodel.model.required_methods:
+        for m in dgvm.datamodel.model.required_methods:
             if m not in model.__dict__ or model.__dict__[m] is getattr(Datamodel, m):
                 raise InvalidModel('%s does not define %s' % (model.__name__, m))
 
@@ -145,7 +146,7 @@ class LocalVM(object):
                 DestroyInstance.mnemonic: DestroyInstance
             }
         }
-        for k, v in self.instructions_pack.instructions.__dict__.iteritems():
+        for k, v in self.instructions_pack.instructions.__dict__.items():
             if isinstance(v, type) and issubclass(v, Instruction):
                 self.add_instruction(v)
 
@@ -245,6 +246,12 @@ class LocalVM(object):
 
     def heap_size(self):
         return len(self.heap)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
 
 class RemoteHeap(object):

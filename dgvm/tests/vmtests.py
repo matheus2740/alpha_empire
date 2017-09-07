@@ -6,8 +6,8 @@ from dgvm.ipc.client import BaseIPCClient
 from dgvm.builtin_instructions import BeginTransaction, EndTransaction, InstantiateModel
 from dgvm.ipc.command import IPCServerException
 from dgvm.tests.alpha_empire_test.datamodels.tank import Tank
-from dgvm.vm import RemoteVM as VM
-from alpha_empire_test.datamodels import Infantry, Board
+from dgvm.vm import LocalVM as VM
+from dgvm.tests.alpha_empire_test.datamodels import Infantry, Board
 __author__ = 'salvia'
 
 
@@ -109,7 +109,7 @@ class VMTests(unittest.TestCase):
             try:
                 i.destroy()
             except IPCServerException as e:
-                print e.original_tb
+                print(e.original_tb)
                 raise
 
             vm.commit()
@@ -298,7 +298,7 @@ class VMTests(unittest.TestCase):
                 )
                 assert False
             except ValueError as e:
-                assert e.message == 'Cannot instantiate Infantry: value for health is required.'
+                assert str(e) == 'Cannot instantiate Infantry: value for health is required.'
 
     def test_attack(self):
 
@@ -327,7 +327,7 @@ class VMTests(unittest.TestCase):
             try:
                 i1.attack(i2)
             except IPCServerException as e:
-                print e.original_tb
+                print(e.original_tb)
                 raise
 
             vm.commit()
@@ -367,7 +367,7 @@ class VMTests(unittest.TestCase):
                     board=b
                 )
             except IPCServerException as e:
-                print e.original_tb
+                print(e.original_tb)
                 raise
 
             vm.commit()
@@ -375,7 +375,7 @@ class VMTests(unittest.TestCase):
             try:
                 t1.attack(i1)
             except IPCServerException as e:
-                print e.original_tb
+                print(e.original_tb)
                 raise
 
             vm.commit()

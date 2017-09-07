@@ -51,6 +51,7 @@ class TreectTests(unittest.TestCase):
         assert isinstance(t['a']['b']['c'], Treect)
         assert isinstance(t.get('a').get('b').get('c').get('d'), Treect)
         assert t.get('a')['b/c/d/e'] == 1
+        assert t.get('a')['b/c']['d/e'] == 1
         assert t.get('a').get('b')['c/d/e'] == 1
         assert t.get('a').get('b').get('c')['d/e'] == 1
         assert t.get('a').get('b').get('c').get('d')['e'] == 1
@@ -96,16 +97,16 @@ class TreectTests(unittest.TestCase):
         t['c'] = 3
         t['d'] = 4
         t['e'] = 5
-        t['2/a'] = 1
-        t['2/b'] = 2
-        t['2/c'] = 3
-        t['2/d'] = 4
-        t['2/e'] = 5
-        t['3/2/a'] = 1
-        t['3/2/b'] = 2
-        t['3/2/c'] = 3
-        t['3/2/d'] = 4
-        t['3/2/e'] = 5
+        t['2/f'] = 6
+        t['2/g'] = 7
+        t['2/h'] = 8
+        t['2/i'] = 9
+        t['2/j'] = 10
+        t['3/2/k'] = 11
+        t['3/2/l'] = 12
+        t['3/2/m'] = 13
+        t['3/2/n'] = 14
+        t['3/2/o'] = 15
 
         for k, v in t.all_items():
             assert ord(k[-1]) == 97 + v - 1
@@ -156,7 +157,21 @@ class TreectTests(unittest.TestCase):
         t2['d'] = 4
         t2['e'] = 5
 
+        t3 = Treect()
+        t3['a/b/c/d/e'] = 1
+        t3['b'] = 2
+        t3['c'] = 3
+        t3['d'] = 4
+        t3['e'] = 5
+        t3['2/b'] = 2
+        t3['2/c'] = 3
+        t3['2/d'] = 4
+        t3['2/e'] = 5
+
         assert t == t
+        assert t == t3
+        assert t != t2
+        assert t2 != t3
         assert t['2'] == t2
         assert t['a/b'] == t.get('a')['b']
 

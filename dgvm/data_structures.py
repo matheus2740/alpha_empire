@@ -12,7 +12,7 @@ class Treect(object):
         if from_dict:
             init_data.update(from_dict)
 
-        init_data.update({k.replace('__', '/'): v for k, v in kwargs.iteritems()})
+        init_data.update({k.replace('__', '/'): v for k, v in kwargs.items()})
 
         for k, v in init_data.items():
             if isinstance(v, dict):
@@ -35,7 +35,9 @@ class Treect(object):
     def items(self):
         return self.__d.items()
 
-    def __all_items(self, prefix=[]):
+    def __all_items(self, prefix=None):
+        if prefix is None:
+            prefix = []
         for k, v in self.items():
             if isinstance(v, self.__class__):
                 for k2, v2 in self.__class__.__all_items(v, prefix + [k]):
@@ -66,7 +68,7 @@ class Treect(object):
 
     def __getitem__(self, item):
 
-        if not isinstance(item, (str, unicode)):
+        if not isinstance(item, str):
             return self.__d[item]
 
         keys = item.split('/')
@@ -82,7 +84,7 @@ class Treect(object):
 
     def __setitem__(self, key, value):
 
-        if not isinstance(key, (str, unicode)):
+        if not isinstance(key, str):
             self.__d[key] = value
             return
 
@@ -101,7 +103,7 @@ class Treect(object):
         container[keys[-1]] = value
 
     def __contains__(self, item):
-        if not isinstance(item, (str, unicode)):
+        if not isinstance(item, str):
             return item in self.__d
 
         keys = item.split('/')
@@ -120,7 +122,7 @@ class Treect(object):
 
     def __delitem__(self, key):
 
-        if not isinstance(key, (str, unicode)):
+        if not isinstance(key, str):
             del self.__d[key]
             return
 
@@ -226,10 +228,10 @@ class Heap(object):
         return t
 
     def __len__(self):
-        c = 0
+        count = 0
         for _, __ in self.make_collapsed().all_items():
-            c += 1
-        return c
+            count += 1
+        return count
 
     def __getitem__(self, item):
         with self.__lock:
@@ -243,7 +245,7 @@ class Heap(object):
         raise KeyError()
 
     def __setitem__(self, key, value):
-        if not isinstance(key, (int, str, unicode)):
+        if not isinstance(key, (int, str)):
             raise ValueError('Heap address must be of type int or string, not ' + type(key).__name__)
         with self.__lock:
             self.__data[-1][key] = value
@@ -259,7 +261,7 @@ class Heap(object):
         return '<Heap object at %s, %s%% used, with size=%s>' % (id(self), self.percent_used(), self.size)
 
     def dump(self):
-        print
+        print()
         for k, v in self.make_collapsed().all_items():
-            print '%s%s%s' % (k, ((80 - len(k)) * ' '), v)
-        print
+            print('%s%s%s' % (k, ((80 - len(k)) * ' '), v))
+        print()

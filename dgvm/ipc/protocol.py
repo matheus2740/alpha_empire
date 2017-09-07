@@ -40,8 +40,8 @@ class BaseIPCProtocol(object):
             raise ICPProtocolException('Attempted sending message too large for protocol: BaseIPCProtocol')
 
         elif len(header) < BaseIPCProtocol.HEADER_SIZE:
-            zeros = '0' * (BaseIPCProtocol.HEADER_SIZE - len(header))
-            header = zeros + header
+            zeros = b'0' * (BaseIPCProtocol.HEADER_SIZE - len(header))
+            header = zeros + bytes(header, 'utf-8')
 
         packet = header + data
         return packet
@@ -69,7 +69,7 @@ class BaseIPCProtocol(object):
         """
         try:
             header = sock.recv(BaseIPCProtocol.HEADER_SIZE)
-            length = int('0x'+header, 16)
+            length = int('0x'+header.decode('utf-8'), 16)
             payload = sock.recv(length)
             return pickle.loads(payload)
         except ValueError:

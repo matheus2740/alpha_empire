@@ -1,5 +1,5 @@
-from Queue import Empty
-from SocketServer import TCPServer, StreamRequestHandler, ThreadingMixIn
+from queue import Empty
+from socketserver import TCPServer, StreamRequestHandler, ThreadingMixIn
 from _socket import SHUT_RDWR
 import socket
 from functools import partial
@@ -14,8 +14,8 @@ import traceback
 import os
 
 from dgvm.ipc.client import retry_on_refuse
-from protocol import BaseIPCProtocol
-from command import Command, Goodbye, Commands
+from .protocol import BaseIPCProtocol
+from .command import Command, Goodbye, Commands
 import time
 
 __author__ = 'salvia'
@@ -90,7 +90,7 @@ class TCPIPCServer(object):
             ppid = os.getppid()
 
             if ppid == 1:
-                print 'I Became orphaned! I cant live like this!'
+                print('I Became orphaned! I cant live like this!')
                 os._exit(1)
 
             try:
@@ -116,7 +116,7 @@ class TCPIPCServer(object):
             t.daemon = True
             t.start()
 
-        for _, sock in self.handler_sockets.iteritems():
+        for _, sock in self.handler_sockets.items():
             sock.close()
 
         self.socket.close()
@@ -147,7 +147,7 @@ class TCPIPCServer(object):
                     send(Command.Ack(self.pid))
                     break
             else:
-                print 'Server received unknown object: %s' % (data,)
+                print('Server received unknown object: %s' % (data,))
 
         # close connection and remove socket from handlers
         request_socket.close()
@@ -163,7 +163,7 @@ class TCPIPCServer(object):
                 return Command.FunctionCallResponse(result)
             except Exception as e:
                 # function execution throws exception
-                return Command.Traceback(traceback.format_exc(), e.message)
+                return Command.Traceback(traceback.format_exc(), str(e))
         else:
             # no such funtion
             return Command.Raise('No Such Function', fname)
